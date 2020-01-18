@@ -41,4 +41,4 @@ SRC += 	cdcacm.c	\
 all:	blackmagic.bin
 
 host_clean:
-	-$(Q)$(RM) blackmagic.bin
+	-$(Q)$(RM) *.bin
