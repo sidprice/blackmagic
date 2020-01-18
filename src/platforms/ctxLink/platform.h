@@ -64,7 +64,7 @@ bool platform_check_battery_voltage (void) ;
 /* Important pin mappings for ctxLink implementation:
  *
  * LED0 = 	PB2				:	(Blue  LED	: LED_UART)
- * LED1 = 	PC7				:	(Green LED	: Idle)
+ * LED1 = 	PC6				:	(Green LED	: Idle/RUN)
  * LED2 = 	PC8				:	(Red LED	: Error)
  * LED3 =	PC9				:	(Green LED	: ctxLink Mode)
  *
@@ -122,7 +122,7 @@ bool platform_check_battery_voltage (void) ;
 #define LED_PORT		GPIOC
 #define LED_PORT_UART	GPIOB
 #define LED_0		GPIO2
-#define LED_1		GPIO7
+#define LED_1		GPIO6
 #define LED_2		GPIO8
 #define	LED_3		GPIO9
 #define LED_UART	LED_0
