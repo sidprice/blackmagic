@@ -37,7 +37,7 @@
 // Define the following symbol to disable the Mode LED
 // and allow it to be used for instrumentation
 //
-//#define	INSTRUMENT	1
+#define	INSTRUMENT	1
 
 #define PLATFORM_HAS_TRACESWO
 #define PLATFORM_HAS_POWER_SWITCH
@@ -201,6 +201,7 @@ bool platform_check_battery_voltage (void) ;
 #define IRQ_PRI_USBUSART		(1 << 4)
 #define IRQ_PRI_USBUSART_TIM	(3 << 4)
 #define IRQ_PRI_SWOUSART		(0 << 4 )
+#define IRQ_PRI_TRACE_TIM		(0 << 4)
 
 #define USBUSART USART1
 #define USBUSART_CR1 USART1_CR1
