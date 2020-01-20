@@ -116,10 +116,16 @@ bool platform_check_battery_voltage (void) ;
 // SWO UART definitions
 //
 #define	SWO_UART			USART6
+#define SWO_UART_CR1		USART6_CR1
 #define SWO_UART_DR			USART6_DR
 #define SWO_UART_CLK		RCC_USART6
 #define SWO_UART_PORT		GPIOC
 #define SWO_UART_RX_PIN		GPIO7
+#define SWO_UART_ISR		usart6_isr
+#define SWO_UART_IRQ		NVIC_USART6_IRQ
+
+#define NUM_TRACE_PACKETS		(128)		/* This is an 8K buffer */
+#define TRACESWO_PROTOCOL		2			/* 1 = Manchester, 2 = NRZ / async */
 
 #define USB_PU_PORT	GPIOA
 #define USB_PU_PIN	GPIO8
@@ -191,10 +197,10 @@ bool platform_check_battery_voltage (void) ;
  * For now USART1 preempts USB which may spin while buffer is drained.
  * TIM3 is used for traceswo capture and must be highest priority.
  */
-#define IRQ_PRI_USB		(2 << 4)
-#define IRQ_PRI_USBUSART	(1 << 4)
+#define IRQ_PRI_USB				(2 << 4)
+#define IRQ_PRI_USBUSART		(1 << 4)
 #define IRQ_PRI_USBUSART_TIM	(3 << 4)
-#define IRQ_PRI_TRACE		(0 << 4)
+#define IRQ_PRI_SWOUSART		(0 << 4 )
 
 #define USBUSART USART1
 #define USBUSART_CR1 USART1_CR1
@@ -215,8 +221,8 @@ bool platform_check_battery_voltage (void) ;
 
 #define TRACE_TIM TIM3
 #define TRACE_TIM_CLK_EN() rcc_periph_clock_enable(RCC_TIM3)
-#define TRACE_IRQ   NVIC_TIM3_IRQ
-#define TRACE_ISR   tim3_isr
+#define TRACE_TIM_IRQ   NVIC_TIM3_IRQ
+#define TRACE_TIM_ISR   tim3_isr
 
 #ifdef ENABLE_DEBUG
 extern bool debug_bmp;

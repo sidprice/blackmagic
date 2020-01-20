@@ -21,7 +21,7 @@ LDFLAGS = -lopencm3_stm32f4  \
 VPATH += platforms/ctxLink platforms/stm32 platforms/winc1500 platforms/winc1500/src
 
 SRC += 	cdcacm.c	\
-	traceswo.c	\
+	ctxLink_traceswo.c	\
 	usbuart.c	\
 	serialno.c	\
 	timing.c	\
