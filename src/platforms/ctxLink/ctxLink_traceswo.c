@@ -71,6 +71,9 @@ void trace_buf_drain(usbd_device *dev, uint8_t ep)
 	__atomic_clear (&inBufDrain, __ATOMIC_RELAXED);
 }
 
+static volatile char errors[32] = {0} ;
+volatile uint32_t errorIndex = 0 ;
+
 void SWO_UART_ISR(void)
 {
 	uint32_t err = USART_SR(SWO_UART);
@@ -79,12 +82,13 @@ void SWO_UART_ISR(void)
 # define USART_SR_NE USART_ISR_NF
 #endif
 	if (err & (USART_FLAG_ORE | USART_FLAG_FE | USART_SR_NE))
+	{
 		return;
+	}
 	if (((w + 1) % FIFO_SIZE) != r)
 	{
 		/* insert into FIFO */
 		trace_rx_buf[w++] = c;
-
 		/* wrap out pointer */
 		if (w >= FIFO_SIZE)
 		{
@@ -103,7 +107,7 @@ void traceswo_init(uint32_t baudrate)
 	if (!baudrate)
 		baudrate = DEFAULTSPEED;
 	/* Setup input UART parameters. */
-	usart_set_baudrate(SWO_UART, 38400);
+	usart_set_baudrate(SWO_UART, baudrate);
 	usart_set_databits(SWO_UART, 8);
 	usart_set_stopbits(SWO_UART, USART_STOPBITS_1);
 	usart_set_mode(SWO_UART, USART_MODE_RX);
