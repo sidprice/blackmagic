@@ -64,10 +64,11 @@ void trace_buf_drain(usbd_device *dev, uint8_t ep)
 	if (__atomic_test_and_set (&inBufDrain, __ATOMIC_RELAXED))
 		return;
 	/* Attempt to write everything we buffered */
-	if ((w != r) && (usbd_ep_write_packet(dev, ep,
-										  &trace_rx_buf[r * FULL_SWO_PACKET],
-										  FULL_SWO_PACKET)))
+	if (w != r)
+	{
+		(usbd_ep_write_packet(dev, ep, &trace_rx_buf[r * FULL_SWO_PACKET], FULL_SWO_PACKET)) ;
 		r =(r + 1) % NUM_TRACE_PACKETS;
+	}
 	__atomic_clear (&inBufDrain, __ATOMIC_RELAXED);
 }
 
@@ -120,6 +121,7 @@ void TRACE_TIM_ISR(void)
 		//
 		// Fluch any Trace data to client
 		//
+		trace_buf_drain(usbdev, 0x85) ;
 		gpio_toggle(LED_PORT, LED_MODE) ;
 	}
 }
@@ -181,7 +183,7 @@ void traceswo_init(uint32_t baudrate)
 	usart_set_flow_control(SWO_UART, USART_FLOWCONTROL_NONE);
 	usart_enable(SWO_UART);
 	// Enable interrupts
-	// SWO_UART_CR1 |= USART_CR1_RXNEIE;
-	// nvic_set_priority(SWO_UART_IRQ, IRQ_PRI_SWOUSART);
-	// nvic_enable_irq(SWO_UART_IRQ);
+	SWO_UART_CR1 |= USART_CR1_RXNEIE;
+	nvic_set_priority(SWO_UART_IRQ, IRQ_PRI_SWOUSART);
+	nvic_enable_irq(SWO_UART_IRQ);
 }
