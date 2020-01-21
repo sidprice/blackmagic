@@ -49,12 +49,13 @@
 #define SWOUART_TIMER_FREQ_HZ	1000000		// 1uS clock
 #define	SWOUART_RUN_FREQ_HZ		500			// 200uS (100 characters @ 2Mbps)
 
-#define FIFO_SIZE NUM_TRACE_PACKETS * FULL_SWO_PACKET
+#define BUFFER_SIZE 1024
 
-static volatile uint32_t w;	/* Packet currently received via UART */
-static volatile uint32_t r;	/* Packet currently waiting to transmit to USB */
-/* Packets arrived from the SWO interface */
-static uint8_t trace_rx_buf[NUM_TRACE_PACKETS * FULL_SWO_PACKET];
+static volatile uint32_t inBuf = 0 ;	// input buffer index
+static volatile uint32_t outBuf = 0 ;	// output buffer index
+static volatile uint32_t bufferSize = 0 ;	// Number of bytes in the buffer 
+
+static uint8_t trace_rx_buf[BUFFER_SIZE] = {0} ;
 
 void trace_buf_drain(usbd_device *dev, uint8_t ep)
 {
@@ -64,16 +65,21 @@ void trace_buf_drain(usbd_device *dev, uint8_t ep)
 	if (__atomic_test_and_set (&inBufDrain, __ATOMIC_RELAXED))
 		return;
 	/* Attempt to write everything we buffered */
-	if (w != r)
+	if (bufferSize != 0)
 	{
-		(usbd_ep_write_packet(dev, ep, &trace_rx_buf[r * FULL_SWO_PACKET], FULL_SWO_PACKET)) ;
-		r =(r + 1) % NUM_TRACE_PACKETS;
+		usbd_ep_write_packet(dev, ep, &trace_rx_buf[outBuf], bufferSize) ;
+		bufferSize = 0 ;
+		outBuf =(outBuf + 1) % BUFFER_SIZE;
 	}
+	else
+	{
+		timer_disable_irq(TRACE_TIM, TIM_DIER_CC1IE) ;
+	}
+	
 	__atomic_clear (&inBufDrain, __ATOMIC_RELAXED);
 }
 
-static volatile char errors[32] = {0} ;
-volatile uint32_t errorIndex = 0 ;
+#define	TRACE_TIM_COMPARE_VALUE	50
 
 void SWO_UART_ISR(void)
 {
@@ -86,19 +92,34 @@ void SWO_UART_ISR(void)
 	{
 		return;
 	}
-	if (((w + 1) % FIFO_SIZE) != r)
+	/* If the next increment of rx_in would put it at the same point
+	* as rx_out, the FIFO is considered full.
+	*/
+	if (((inBuf + 1) % BUFFER_SIZE) != outBuf)
 	{
 		/* insert into FIFO */
-		trace_rx_buf[w++] = c;
+		trace_rx_buf[inBuf++] = c;
+		bufferSize++ ;
+
 		/* wrap out pointer */
-		if (w >= FIFO_SIZE)
+		if (inBuf >= BUFFER_SIZE)
 		{
-			w = 0;
+			inBuf = 0;
 		}
+
+		/*
+		 * Get current timer value to calculate next
+		 * compare register value.
+		 */
+		uint16_t compare_time = timer_get_counter(TRACE_TIM);
+		/* Calculate and set the next compare value. */
+		uint16_t frequency = TRACE_TIM_COMPARE_VALUE;
+		uint16_t new_time = compare_time + frequency;
+		timer_set_oc_value(TRACE_TIM, TIM_OC1, new_time);
+		/* enable deferred processing if we put data in the FIFO */
+		timer_enable_irq(TRACE_TIM, TIM_DIER_CC1IE);	
 	}
 }
-
-#define	TRACE_TIM_COMPARE_VALUE	50
 
 void TRACE_TIM_ISR(void)
 {
@@ -122,12 +143,12 @@ void TRACE_TIM_ISR(void)
 		// Fluch any Trace data to client
 		//
 		trace_buf_drain(usbdev, 0x85) ;
-		gpio_toggle(LED_PORT, LED_MODE) ;
 	}
 }
 
 void traceswo_init(uint32_t baudrate)
 {
+	rcc_periph_clock_enable(SWO_UART_CLK) ;
 	TRACE_TIM_CLK_EN();
 
 	/* Enable TIM2 interrupt. */
@@ -167,7 +188,7 @@ void traceswo_init(uint32_t baudrate)
 	timer_enable_counter(TRACE_TIM);
 
 	/* Enable Channel 1 compare interrupt to recalculate compare values */
-	timer_enable_irq(TRACE_TIM, TIM_DIER_CC1IE);
+	//timer_enable_irq(TRACE_TIM, TIM_DIER_CC1IE);
 	//
 	gpio_mode_setup(SWO_UART_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, SWO_UART_RX_PIN);
 	gpio_set_af(SWO_UART_PORT, GPIO_AF8, SWO_UART_RX_PIN); 

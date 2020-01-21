@@ -124,7 +124,6 @@ bool platform_check_battery_voltage (void) ;
 #define SWO_UART_ISR		usart6_isr
 #define SWO_UART_IRQ		NVIC_USART6_IRQ
 
-#define NUM_TRACE_PACKETS		(128)		/* This is an 8K buffer */
 #define TRACESWO_PROTOCOL		2			/* 1 = Manchester, 2 = NRZ / async */
 
 #define USB_PU_PORT	GPIOA
