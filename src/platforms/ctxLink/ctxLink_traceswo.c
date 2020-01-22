@@ -67,9 +67,14 @@ void trace_buf_drain(usbd_device *dev, uint8_t ep)
 	/* Attempt to write everything we buffered */
 	if (bufferSize != 0)
 	{
-		usbd_ep_write_packet(dev, ep, &trace_rx_buf[outBuf], bufferSize) ;
+		uint16_t result = usbd_ep_write_packet(dev, ep, &trace_rx_buf[outBuf], bufferSize) ;
+		if ( result != bufferSize)
+		{
+			result = 0 ;
+		}
 		bufferSize = 0 ;
 		outBuf =(outBuf + 1) % BUFFER_SIZE;
+		gpio_toggle(LED_PORT, LED_MODE) ;
 	}
 	else
 	{
@@ -83,11 +88,13 @@ void trace_buf_drain(usbd_device *dev, uint8_t ep)
 
 void SWO_UART_ISR(void)
 {
+	//
+	// Make sure the flush timer is disabled 
+	//
+	timer_disable_counter(TRACE_TIM) ;
 	uint32_t err = USART_SR(SWO_UART);
 	char c = usart_recv(SWO_UART);
-#if !defined(USART_SR_NE) && defined(USART_ISR_NF)
-# define USART_SR_NE USART_ISR_NF
-#endif
+
 	if (err & (USART_FLAG_ORE | USART_FLAG_FE | USART_SR_NE))
 	{
 		return;
@@ -106,43 +113,50 @@ void SWO_UART_ISR(void)
 		{
 			inBuf = 0;
 		}
-
-		/*
-		 * Get current timer value to calculate next
-		 * compare register value.
-		 */
-		uint16_t compare_time = timer_get_counter(TRACE_TIM);
-		/* Calculate and set the next compare value. */
-		uint16_t frequency = TRACE_TIM_COMPARE_VALUE;
-		uint16_t new_time = compare_time + frequency;
-		timer_set_oc_value(TRACE_TIM, TIM_OC1, new_time);
-		/* enable deferred processing if we put data in the FIFO */
-		timer_enable_irq(TRACE_TIM, TIM_DIER_CC1IE);	
+		//
+		// Check if we have a full packet to send to client
+		//
+		if (bufferSize == FULL_SWO_PACKET)
+		{
+			//
+			// Flush the buffer to client
+			//
+			usbd_ep_write_packet(usbdev, 0x85, &trace_rx_buf[outBuf], bufferSize) ;
+			outBuf = (outBuf + bufferSize) % BUFFER_SIZE ;
+			bufferSize = 0 ;
+		}
+		else
+		{
+			//
+			// Start the flush timer
+			//
+			timer_set_counter(TRACE_TIM, 0) ;	// Reset the Counter
+			timer_enable_counter(TRACE_TIM) ;
+			timer_enable_irq(TRACE_TIM, TIM_DIER_CC1IE) ;
+		}
 	}
 }
 
 void TRACE_TIM_ISR(void)
 {
 	if (timer_get_flag(TRACE_TIM, TIM_SR_CC1IF)) {
-
-		/* Clear compare interrupt flag. */
+		//
+		// Clear compare interrupt flag.
+		//
 		timer_clear_flag(TRACE_TIM, TIM_SR_CC1IF);
-
-		/*
-		 * Get current timer value to calculate next
-		 * compare register value.
-		 */
-		uint16_t compare_time = timer_get_counter(TRACE_TIM);
-
-		/* Calculate and set the next compare value. */
-		uint16_t frequency = TRACE_TIM_COMPARE_VALUE;
-		uint16_t new_time = compare_time + frequency;
-
-		timer_set_oc_value(TRACE_TIM, TIM_OC1, new_time);
+		// Disable the  timer
+		timer_disable_irq(TRACE_TIM, TIM_DIER_CC1IE) ;
+		// Reset the Counter
+		timer_set_counter(TRACE_TIM, 0) ;
 		//
-		// Fluch any Trace data to client
+		// Now flush the data to the client
 		//
-		trace_buf_drain(usbdev, 0x85) ;
+		if ( bufferSize > 0)
+		{
+			usbd_ep_write_packet(usbdev, 0x85, &trace_rx_buf[outBuf], bufferSize) ;
+			outBuf = (outBuf + bufferSize) % BUFFER_SIZE ;
+			bufferSize = 0 ;
+		}
 	}
 }
 
