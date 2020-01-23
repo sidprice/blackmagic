@@ -53,7 +53,7 @@
 
 static volatile uint32_t inBuf = 0 ;	// input buffer index
 static volatile uint32_t outBuf = 0 ;	// output buffer index
-static volatile uint32_t bufferSize = 0 ;	// Number of bytes in the buffer 
+volatile uint32_t bufferSize = 0 ;	// Number of bytes in the buffer 
 
 static uint8_t trace_rx_buf[BUFFER_SIZE] = {0} ;
 
@@ -84,7 +84,7 @@ void trace_buf_drain(usbd_device *dev, uint8_t ep)
 	__atomic_clear (&inBufDrain, __ATOMIC_RELAXED);
 }
 
-#define	TRACE_TIM_COMPARE_VALUE	50
+#define	TRACE_TIM_COMPARE_VALUE	2000
 
 void SWO_UART_ISR(void)
 {
@@ -116,14 +116,23 @@ void SWO_UART_ISR(void)
 		//
 		// Check if we have a full packet to send to client
 		//
-		if (bufferSize == FULL_SWO_PACKET)
+		// if (bufferSize == FULL_SWO_PACKET)
+		if (bufferSize == 42)	// Just this test you know!
 		{
 			//
 			// Flush the buffer to client
 			//
-			usbd_ep_write_packet(usbdev, 0x85, &trace_rx_buf[outBuf], bufferSize) ;
-			outBuf = (outBuf + bufferSize) % BUFFER_SIZE ;
-			bufferSize = 0 ;
+			if (usbd_ep_write_packet(usbdev, 0x85, &trace_rx_buf[outBuf], bufferSize) != bufferSize)
+			{
+				bufferSize = 0 ;
+				outBuf = (outBuf + bufferSize) % BUFFER_SIZE ;
+			}
+			else
+			{
+				outBuf = (outBuf + bufferSize) % BUFFER_SIZE ;
+				bufferSize = 0 ;
+			}
+			
 		}
 		else
 		{
@@ -132,7 +141,7 @@ void SWO_UART_ISR(void)
 			//
 			timer_set_counter(TRACE_TIM, 0) ;	// Reset the Counter
 			timer_enable_counter(TRACE_TIM) ;
-			timer_enable_irq(TRACE_TIM, TIM_DIER_CC1IE) ;
+			// timer_enable_irq(TRACE_TIM, TIM_DIER_CC1IE) ;
 		}
 	}
 }
@@ -153,9 +162,17 @@ void TRACE_TIM_ISR(void)
 		//
 		if ( bufferSize > 0)
 		{
-			usbd_ep_write_packet(usbdev, 0x85, &trace_rx_buf[outBuf], bufferSize) ;
-			outBuf = (outBuf + bufferSize) % BUFFER_SIZE ;
-			bufferSize = 0 ;
+			if (usbd_ep_write_packet(usbdev, 0x85, &trace_rx_buf[outBuf], bufferSize) != bufferSize)
+			{
+				outBuf = (outBuf + bufferSize) % BUFFER_SIZE ;
+				bufferSize = 0 ;
+			}
+			else
+			{
+				outBuf = (outBuf + bufferSize) % BUFFER_SIZE ;
+				bufferSize = 0 ;
+			}
+			
 		}
 	}
 }
