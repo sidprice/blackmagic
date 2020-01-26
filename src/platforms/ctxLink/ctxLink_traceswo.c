@@ -74,7 +74,6 @@ void trace_buf_drain(usbd_device *dev, uint8_t ep)
 		}
 		bufferSize = 0 ;
 		outBuf =(outBuf + 1) % BUFFER_SIZE;
-		gpio_toggle(LED_PORT, LED_MODE) ;
 	}
 	else
 	{
