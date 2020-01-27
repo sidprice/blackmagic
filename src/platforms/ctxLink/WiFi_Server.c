@@ -1530,7 +1530,7 @@ unsigned char WiFi_GetNext_to( uint32_t timeout )
 	platform_timeout t;
 	unsigned char c = 0 ;
 	int	inputCount = 0;
-	platform_timeout_set( &t, 10 );
+	platform_timeout_set( &t, timeout );
 
 	do {
 		if ((inputCount = WiFi_HaveInput ()) != 0) {
@@ -1543,7 +1543,7 @@ unsigned char WiFi_GetNext_to( uint32_t timeout )
 		
 		platform_tasks ();
 		
-	} while (1) ;
+	} while (!platform_timeout_is_expired (&t)) ;
 
 	if (inputCount != 0) {
 		c = WiFi_GetNext ();
