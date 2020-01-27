@@ -870,19 +870,29 @@ static void AppSocketCallback(SOCKET sock, uint8_t msgType, void *pvMsg)
 			{
 				if (pRecvData->bufSize > 0)
 				{
-					//
-					// The only data we expect is the UART configuration, so pass of the data for parsing and use
-					//
-					if (platform_configure_uart ((char*)&localUartDebugBuffer[0]) == false)
+					if ( g_userConfiguredUart == false)
 					{
-						//
-						// Setup failed, tell user
-						//
-						send (uartDebugClientSocket, "Syntax error in setup string\r\n", strlen ("Syntax error in setup string\r\n"), 0);
+						if (platform_configure_uart ((char*)&localUartDebugBuffer[0]) == false)
+						{
+							//
+							// Setup failed, tell user
+							//
+							send (uartDebugClientSocket, "Syntax error in setup string\r\n", strlen ("Syntax error in setup string\r\n"), 0);
+						}
+						else
+						{
+							g_userConfiguredUart = true;
+						}
 					}
 					else
 					{
-						g_userConfiguredUart = true;
+						//
+						// Forward data to target MCU 
+						//
+						gpio_set(LED_PORT_UART, LED_UART);
+						for(int i = 0; i < pRecvData->bufSize; i++)
+							usart_send_blocking(USBUSART, localUartDebugBuffer[i]);
+						gpio_clear(LED_PORT_UART, LED_UART);
 					}
 					memset (&localUartDebugBuffer[0], 0x00, sizeof (localUartDebugBuffer));
 					//
