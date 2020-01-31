@@ -97,7 +97,7 @@ static void usbuart_run(void)
 	}
 #endif
 	/* forcibly empty fifo if no USB endpoint */
-	if (cdcacm_get_config () != 1)
+	if (cdcacm_get_config() != 1)
 	{
 		buf_rx_out = buf_rx_in;
 	}
@@ -105,8 +105,8 @@ static void usbuart_run(void)
 	/* if fifo empty, nothing further to do */
 	if (buf_rx_in == buf_rx_out) {
 		/* turn off LED, disable IRQ */
-		timer_disable_irq (USBUSART_TIM, TIM_DIER_UIE);
-		gpio_clear (LED_PORT_UART, LED_UART);
+		timer_disable_irq(USBUSART_TIM, TIM_DIER_UIE);
+		gpio_clear(LED_PORT_UART, LED_UART);
 	}
 	else
 	{
@@ -128,8 +128,8 @@ static void usbuart_run(void)
 		}
 
 		/* advance fifo out pointer by amount written */
-		buf_rx_out += usbd_ep_write_packet (usbdev,
-			CDCACM_UART_ENDPOINT, packet_buf, packet_size);
+		buf_rx_out += usbd_ep_write_packet(usbdev,
+				CDCACM_UART_ENDPOINT, packet_buf, packet_size);
 		buf_rx_out %= FIFO_SIZE;
 	}
 }
