@@ -85,6 +85,8 @@ void trace_buf_drain(usbd_device *dev, uint8_t ep)
 
 #define	TRACE_TIM_COMPARE_VALUE	2000
 
+static volatile uint32_t usbCount = 0 ;
+
 void SWO_UART_ISR(void)
 {
 	//
@@ -121,13 +123,18 @@ void SWO_UART_ISR(void)
 			//
 			// Flush the buffer to client
 			//
-			if (usbd_ep_write_packet(usbdev, 0x85, &trace_rx_buf[outBuf], bufferSize) != bufferSize)
+			if (usbd_ep_write_packet(usbdev, USB_TRACESWO_ENDPOINT, &trace_rx_buf[outBuf], bufferSize) != bufferSize)
 			{
 				bufferSize = 0 ;
 				outBuf = (outBuf + bufferSize) % BUFFER_SIZE ;
 			}
 			else
 			{
+				usbCount++ ;
+				if ( usbCount == 1024)
+				{
+					usbCount = 0 ;
+				}
 				outBuf = (outBuf + bufferSize) % BUFFER_SIZE ;
 				bufferSize = 0 ;
 			}
@@ -161,7 +168,7 @@ void TRACE_TIM_ISR(void)
 		//
 		if ( bufferSize > 0)
 		{
-			if (usbd_ep_write_packet(usbdev, 0x85, &trace_rx_buf[outBuf], bufferSize) != bufferSize)
+			if (usbd_ep_write_packet(usbdev, USB_TRACESWO_ENDPOINT, &trace_rx_buf[outBuf], bufferSize) != bufferSize)
 			{
 				outBuf = (outBuf + bufferSize) % BUFFER_SIZE ;
 				bufferSize = 0 ;
