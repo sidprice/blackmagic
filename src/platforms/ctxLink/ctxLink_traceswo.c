@@ -32,6 +32,7 @@
 #include "general.h"
 #include "cdcacm.h"
 #include "traceswo.h"
+#include "platform.h"
 
 #include <libopencm3/cm3/common.h>
 #include <libopencmsis/core_cm3.h>
@@ -39,15 +40,11 @@
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/usart.h>
-//#include <libopencm3/stm32/dma.h>
 
 /* For speed this is set to the USB transfer size */
 #define FULL_SWO_PACKET	(64)
 /* Default line rate....used as default for a request without baudrate */
 #define DEFAULTSPEED	(2250000)
-
-#define SWOUART_TIMER_FREQ_HZ	1000000		// 1uS clock
-#define	SWOUART_RUN_FREQ_HZ		500			// 200uS (100 characters @ 2Mbps)
 
 #define BUFFER_SIZE 1024
 
@@ -58,29 +55,21 @@ volatile uint32_t bufferSize = 0 ;	// Number of bytes in the buffer
 static uint8_t trace_rx_buf[BUFFER_SIZE] = {0} ;
 
 void trace_buf_drain(usbd_device *dev, uint8_t ep)
-{
-	static volatile char inBufDrain;
+{ ; }
 
-	/* If we are already in this routine then we don't need to come in again */
-	if (__atomic_test_and_set (&inBufDrain, __ATOMIC_RELAXED))
+void _trace_buf_drain(usbd_device *dev, uint8_t ep)
+{
+	// uint32_t	outCount ;
+	// __atomic_load(&bufferSize, &outCount, __ATOMIC_RELAXED) ;
+	if (bufferSize == 0)
+	{
 		return;
-	/* Attempt to write everything we buffered */
-	if (bufferSize != 0)
-	{
-		uint16_t result = usbd_ep_write_packet(dev, ep, &trace_rx_buf[outBuf], bufferSize) ;
-		if ( result != bufferSize)
-		{
-			result = 0 ;
-		}
-		bufferSize = 0 ;
-		outBuf =(outBuf + 1) % BUFFER_SIZE;
 	}
-	else
-	{
-		timer_disable_irq(TRACE_TIM, TIM_DIER_CC1IE) ;
-	}
-	
-	__atomic_clear (&inBufDrain, __ATOMIC_RELAXED);
+	usbd_ep_write_packet(dev, ep, &trace_rx_buf[outBuf], bufferSize);
+	outBuf += bufferSize ;
+	outBuf %= BUFFER_SIZE ;
+	//__atomic_fetch_sub(&bufferSize, outCount, __ATOMIC_RELAXED);
+	bufferSize = 0 ;
 }
 
 #define	TRACE_TIM_COMPARE_VALUE	2000
@@ -101,10 +90,13 @@ void SWO_UART_ISR(void)
 	/* If the next increment of rx_in would put it at the same point
 	* as rx_out, the FIFO is considered full.
 	*/
+	// uint32_t	copyOutBuf ;
+	// __atomic_load(&outBuf, &copyOutBuf, __ATOMIC_RELAXED) ;
 	if (((inBuf + 1) % BUFFER_SIZE) != outBuf)
 	{
 		/* insert into FIFO */
 		trace_rx_buf[inBuf++] = c;
+		// __atomic_fetch_add(&bufferSize, 1, __ATOMIC_RELAXED) ;	// bufferSize++ ;
 		bufferSize++ ;
 
 		/* wrap out pointer */
@@ -113,32 +105,28 @@ void SWO_UART_ISR(void)
 			inBuf = 0;
 		}
 		//
-		// Check if we have a full packet to send to client
+		// Prepare the flush timer
 		//
-		if (bufferSize == FULL_SWO_PACKET)
-		{
-			//
-			// Flush the buffer to client
-			//
-			usbd_ep_write_packet(usbdev, USB_TRACESWO_ENDPOINT, &trace_rx_buf[outBuf], bufferSize) ;
-			
-		}
-		else
-		{
-			//
-			// Start the flush timer
-			//
-			timer_set_counter(TRACE_TIM, 0) ;	// Reset the Counter
-			timer_enable_counter(TRACE_TIM) ;
-			// timer_enable_irq(TRACE_TIM, TIM_DIER_CC1IE) ;
-		}
-		outBuf = (outBuf + bufferSize) % BUFFER_SIZE ;
-		bufferSize = 0 ;
+		//
+		// Clear any compare interrupt flag.
+		//
+		timer_clear_flag(TRACE_TIM, TIM_SR_CC1IF);
+		timer_set_counter(TRACE_TIM, 0) ;	// Reset the Counter
+		timer_enable_counter(TRACE_TIM) ;
+		timer_enable_irq(TRACE_TIM, TIM_DIER_CC1IE) ;
 	}
+	else
+	{
+		// Just drop data ????
+	}
+	
 }
 
 void TRACE_TIM_ISR(void)
 {
+#ifdef INSTRUMENT
+	INSTRUMENT_TOGGLE ;
+#endif
 	if (timer_get_flag(TRACE_TIM, TIM_SR_CC1IF)) {
 		//
 		// Clear compare interrupt flag.
@@ -151,20 +139,7 @@ void TRACE_TIM_ISR(void)
 		//
 		// Now flush the data to the client
 		//
-		if ( bufferSize > 0)
-		{
-			if (usbd_ep_write_packet(usbdev, USB_TRACESWO_ENDPOINT, &trace_rx_buf[outBuf], bufferSize) != bufferSize)
-			{
-				outBuf = (outBuf + bufferSize) % BUFFER_SIZE ;
-				bufferSize = 0 ;
-			}
-			else
-			{
-				outBuf = (outBuf + bufferSize) % BUFFER_SIZE ;
-				bufferSize = 0 ;
-			}
-			
-		}
+		_trace_buf_drain(usbdev, USB_TRACESWO_ENDPOINT) ;
 	}
 }
 

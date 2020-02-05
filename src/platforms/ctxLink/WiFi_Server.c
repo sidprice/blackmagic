@@ -852,9 +852,6 @@ static void AppSocketCallback(SOCKET sock, uint8_t msgType, void *pvMsg)
 						inputBuffer[uiInputIndex] = localBuffer[i];
 					}
 					uiBufferCount += pRecvData->bufSize;
-#ifdef INSTRUMENT
-					gpio_set (LED_PORT, LED_3);
-#endif
 					dprintf ("Received -> %d, queued -> %ld\r\n", pRecvData->bufSize, uiBufferCount);
 					//
 					// Start another receive operation so we always get data
