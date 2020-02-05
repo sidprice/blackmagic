@@ -55,21 +55,21 @@ volatile uint32_t bufferSize = 0 ;	// Number of bytes in the buffer
 static uint8_t trace_rx_buf[BUFFER_SIZE] = {0} ;
 
 void trace_buf_drain(usbd_device *dev, uint8_t ep)
-{ ; }
+{
+}
 
 void _trace_buf_drain(usbd_device *dev, uint8_t ep)
 {
-	// uint32_t	outCount ;
-	// __atomic_load(&bufferSize, &outCount, __ATOMIC_RELAXED) ;
-	if (bufferSize == 0)
+	uint32_t	outCount ;
+	__atomic_load(&bufferSize, &outCount, __ATOMIC_RELAXED) ;
+	if (outCount == 0)
 	{
 		return;
 	}
-	usbd_ep_write_packet(dev, ep, &trace_rx_buf[outBuf], bufferSize);
-	outBuf += bufferSize ;
+	usbd_ep_write_packet(dev, ep, &trace_rx_buf[outBuf], outCount);
+	outBuf += outCount ;
 	outBuf %= BUFFER_SIZE ;
-	//__atomic_fetch_sub(&bufferSize, outCount, __ATOMIC_RELAXED);
-	bufferSize = 0 ;
+	__atomic_fetch_sub(&bufferSize, outCount, __ATOMIC_RELAXED);
 }
 
 #define	TRACE_TIM_COMPARE_VALUE	2000
@@ -88,22 +88,25 @@ void SWO_UART_ISR(void)
 		return;
 	}
 	/* If the next increment of rx_in would put it at the same point
-	* as rx_out, the FIFO is considered full.
-	*/
-	// uint32_t	copyOutBuf ;
-	// __atomic_load(&outBuf, &copyOutBuf, __ATOMIC_RELAXED) ;
-	if (((inBuf + 1) % BUFFER_SIZE) != outBuf)
+	 * as rx_out, the FIFO is considered full.
+	 */
+	uint32_t	copyOutBuf ;
+	__atomic_load(&outBuf, &copyOutBuf, __ATOMIC_RELAXED) ;
+	if (((inBuf + 1) % BUFFER_SIZE) != copyOutBuf)
 	{
 		/* insert into FIFO */
 		trace_rx_buf[inBuf++] = c;
-		// __atomic_fetch_add(&bufferSize, 1, __ATOMIC_RELAXED) ;	// bufferSize++ ;
-		bufferSize++ ;
+		_atomic_fetch_add(&bufferSize, 1, __ATOMIC_RELAXED) ;	// bufferSize++ ;
 
 		/* wrap out pointer */
 		if (inBuf >= BUFFER_SIZE)
 		{
 			inBuf = 0;
 		}
+		//
+		// If we have a packet-sized amount of data send
+		// it to USB
+		//
 		//
 		// Prepare the flush timer
 		//
@@ -124,9 +127,6 @@ void SWO_UART_ISR(void)
 
 void TRACE_TIM_ISR(void)
 {
-#ifdef INSTRUMENT
-	INSTRUMENT_TOGGLE ;
-#endif
 	if (timer_get_flag(TRACE_TIM, TIM_SR_CC1IF)) {
 		//
 		// Clear compare interrupt flag.
