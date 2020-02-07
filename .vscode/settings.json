@@ -10,6 +10,7 @@
         "timing_stm32.h": "c",
         "gdb_if.h": "c",
         "setjmp.h": "c",
-        "common.h": "c"
+        "common.h": "c",
+        "cdcacm.h": "c"
     }
 }
