@@ -33,12 +33,6 @@
 
 #include <setjmp.h>
 
-//
-// Define the following symbol to disable the Mode LED
-// and allow it to be used for instrumentation
-//
-// #define	INSTRUMENT	1
-
 #define PLATFORM_HAS_TRACESWO
 #define PLATFORM_HAS_POWER_SWITCH
 #define PLATFORM_HAS_BATTERY
@@ -150,10 +144,18 @@ bool platform_check_battery_voltage (void) ;
 //
 #define SWITCH_PORT	GPIOB
 #define SW_BOOTLOADER_PIN	GPIO12
+
 //
-// Use the UART Led as a probe foe debug
-// 
-#define PROBE_PIN gpio_toggle (LED_PORT_UART, LED_UART)
+// Define the following symbol to disable the Mode LED
+// and allow it to be used for instrumentation
+//
+#define	INSTRUMENT	1
+
+#ifdef INSTRUMENT
+#define INSTRUMENT_TOGGLE	gpio_toggle(LED_PORT, LED_3)
+#define INSTRUMENT_ON		gpio_set(LED_PORT, LED_3)
+#define INSTRUMENT_OFF		gpio_clear(LED_PORT, LED_3)
+#endif
 
 //
 // Target voltage input
@@ -200,7 +202,7 @@ bool platform_check_battery_voltage (void) ;
 #define IRQ_PRI_USBUSART		(1 << 4)
 #define IRQ_PRI_USBUSART_TIM	(3 << 4)
 #define IRQ_PRI_SWOUSART		(0 << 4 )
-#define IRQ_PRI_TRACE_TIM		(0 << 4)
+#define IRQ_PRI_TRACE_TIM		(3 << 4)
 
 #define USBUSART USART1
 #define USBUSART_CR1 USART1_CR1
@@ -217,12 +219,6 @@ bool platform_check_battery_voltage (void) ;
 #define USBUSART_TIM_CLK_EN() rcc_periph_clock_enable(RCC_TIM4)
 #define USBUSART_TIM_IRQ NVIC_TIM4_IRQ
 #define USBUSART_TIM_ISR tim4_isr
-
-
-#define TRACE_TIM TIM3
-#define TRACE_TIM_CLK_EN() rcc_periph_clock_enable(RCC_TIM3)
-#define TRACE_TIM_IRQ   NVIC_TIM3_IRQ
-#define TRACE_TIM_ISR   tim3_isr
 
 #ifdef ENABLE_DEBUG
 extern bool debug_bmp;

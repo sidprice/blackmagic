@@ -468,7 +468,6 @@ static uint8_t	adcChannels[] = { CTXLINK_BATTERY_INPUT, CTXLINK_TARGET_VOLTAGE_I
 
 void platform_adc_read (void)
 {
-	// PROBE_PIN;
 	adc_set_regular_sequence (ADC1, 1, &(adcChannels[CTXLINK_ADC_BATTERY]));
 	adc_start_conversion_regular (ADC1);
 	/* Wait for end of conversion. */
