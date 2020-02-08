@@ -53,26 +53,49 @@ static volatile uint32_t outBuf = 0 ;	// output buffer index
 volatile uint32_t bufferSize = 0 ;	// Number of bytes in the buffer 
 
 static uint8_t trace_rx_buf[BUFFER_SIZE] = {0} ;
-
-void trace_buf_drain(usbd_device *dev, uint8_t ep)
-{
-	_trace_buf_drain(usbdev, ep) ;
-}
+#define NUM_PINGPONG_BUFFERS	2
+static uint8_t pingpongBuffers[NUM_PINGPONG_BUFFERS * FULL_SWO_PACKET] = {0} ;
+static uint32_t bufferSelect = 0 ;
 
 void _trace_buf_drain(usbd_device *dev, uint8_t ep)
 {
 	uint32_t	outCount ;
+	uint8_t	*bufferPointer, *bufferStart ;
+
 	__atomic_load(&bufferSize, &outCount, __ATOMIC_RELAXED) ;
 	if (outCount == 0)
 	{
 		return;
 	}
-	if (usbd_ep_write_packet(dev, ep, &trace_rx_buf[outBuf], outCount) == outCount)
+	//
+	// Set up the pointer to grab the data
+	//
+	bufferPointer = bufferStart = &pingpongBuffers[bufferSelect * FULL_SWO_PACKET] ;
+	//
+	// Copy the data
+	//
+	for ( uint32_t i = 0 ; i < outCount ;i++)
 	{
-		outBuf += outCount ;
-		outBuf %= BUFFER_SIZE ;
+		*bufferPointer++ = trace_rx_buf[outBuf++] ;
+		if ( outBuf >= BUFFER_SIZE)
+		{
+			outBuf = 0 ;
+		}
+	}
+	//
+	// Bump the pingpong buffer selection
+	//
+	bufferSelect = (bufferSelect+1) % NUM_PINGPONG_BUFFERS ;
+
+	if (usbd_ep_write_packet(dev, ep, bufferStart, outCount) == outCount)
+	{
 		__atomic_fetch_sub(&bufferSize, outCount, __ATOMIC_RELAXED);
 	}
+}
+
+void trace_buf_drain(usbd_device *dev, uint8_t ep)
+{
+	_trace_buf_drain(usbdev, ep) ;
 }
 
 #define	TRACE_TIM_COMPARE_VALUE	2000
@@ -112,6 +135,7 @@ void SWO_UART_ISR(void)
 		//
 		uint32_t outCount ;
 		__atomic_load(&bufferSize, &outCount, __ATOMIC_RELAXED) ;
+		// if (outCount >= FULL_SWO_PACKET)
 		if (outCount >= FULL_SWO_PACKET)
 		{
 			_trace_buf_drain(usbdev, USB_TRACESWO_ENDPOINT) ;
@@ -122,10 +146,10 @@ void SWO_UART_ISR(void)
 		//
 		// Clear any compare interrupt flag.
 		//
-		timer_clear_flag(TRACE_TIM, TIM_SR_CC1IF);
-		timer_set_counter(TRACE_TIM, 0) ;	// Reset the Counter
-		timer_enable_counter(TRACE_TIM) ;
-		timer_enable_irq(TRACE_TIM, TIM_DIER_CC1IE) ;
+		// timer_clear_flag(TRACE_TIM, TIM_SR_CC1IF);
+		// timer_set_counter(TRACE_TIM, 0) ;	// Reset the Counter
+		// timer_enable_counter(TRACE_TIM) ;
+		// timer_enable_irq(TRACE_TIM, TIM_DIER_CC1IE) ;
 	}
 	else
 	{
