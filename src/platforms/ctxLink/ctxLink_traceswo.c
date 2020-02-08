@@ -102,10 +102,6 @@ void trace_buf_drain(usbd_device *dev, uint8_t ep)
 
 void SWO_UART_ISR(void)
 {
-	//
-	// Make sure the flush timer is disabled 
-	//
-	timer_disable_counter(TRACE_TIM) ;
 	uint32_t err = USART_SR(SWO_UART);
 	char c = usart_recv(SWO_UART);
 
@@ -140,16 +136,6 @@ void SWO_UART_ISR(void)
 		{
 			_trace_buf_drain(usbdev, USB_TRACESWO_ENDPOINT) ;
 		}
-		//
-		// Prepare the flush timer
-		//
-		//
-		// Clear any compare interrupt flag.
-		//
-		// timer_clear_flag(TRACE_TIM, TIM_SR_CC1IF);
-		// timer_set_counter(TRACE_TIM, 0) ;	// Reset the Counter
-		// timer_enable_counter(TRACE_TIM) ;
-		// timer_enable_irq(TRACE_TIM, TIM_DIER_CC1IE) ;
 	}
 	else
 	{
@@ -158,68 +144,9 @@ void SWO_UART_ISR(void)
 	
 }
 
-void TRACE_TIM_ISR(void)
-{
-	if (timer_get_flag(TRACE_TIM, TIM_SR_CC1IF)) {
-		//
-		// Clear compare interrupt flag.
-		//
-		timer_clear_flag(TRACE_TIM, TIM_SR_CC1IF);
-		// Disable the  timer
-		timer_disable_irq(TRACE_TIM, TIM_DIER_CC1IE) ;
-		// Reset the Counter
-		timer_set_counter(TRACE_TIM, 0) ;
-		//
-		// Now flush the data to the client
-		//
-		_trace_buf_drain(usbdev, USB_TRACESWO_ENDPOINT) ;
-	}
-}
-
 void traceswo_init(uint32_t baudrate)
 {
 	rcc_periph_clock_enable(SWO_UART_CLK) ;
-	TRACE_TIM_CLK_EN();
-
-	/* Enable TIM2 interrupt. */
-	nvic_enable_irq(TRACE_TIM_IRQ);
-
-	/* Reset TIM3 peripheral to defaults. */
-	rcc_periph_reset_pulse(RST_TIM3);
-
-	/* Timer global mode:
-	 * - No divider
-	 * - Alignment edge
-	 * - Direction up
-	 * (These are actually default values after reset above, so this call
-	 * is strictly unnecessary, but demos the api for alternative settings)
-	 */
-	timer_set_mode(TRACE_TIM, TIM_CR1_CKD_CK_INT, TIM_CR1_CMS_EDGE, TIM_CR1_DIR_UP);
-	/*
-	 * Please take note that the clock source for STM32 timers
-	 * might not be the raw APB1/APB2 clocks.  In various conditions they
-	 * are doubled.  See the Reference Manual for full details!
-	 * In our case, TIM3 on APB1 is running at double frequency, so this
-	 * sets the prescaler to have the timer run at 50kHz
-	 */
-	timer_set_prescaler(TRACE_TIM, ((rcc_apb1_frequency * 2) / 50000));
-
-	/* Disable preload. */
-	timer_disable_preload(TRACE_TIM);
-	timer_continuous_mode(TRACE_TIM);
-
-	/* count full range, as we'll update compare value continuously */
-	timer_set_period(TRACE_TIM, 65535);
-
-	/* Set the initual output compare value for OC1. */
-	timer_set_oc_value(TRACE_TIM, TIM_OC1, TRACE_TIM_COMPARE_VALUE);
-
-	/* Counter enable. */
-	timer_enable_counter(TRACE_TIM);
-
-	/* Enable Channel 1 compare interrupt to recalculate compare values */
-	//timer_enable_irq(TRACE_TIM, TIM_DIER_CC1IE);
-	//
 	gpio_mode_setup(SWO_UART_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, SWO_UART_RX_PIN);
 	gpio_set_af(SWO_UART_PORT, GPIO_AF8, SWO_UART_RX_PIN); 
 	//

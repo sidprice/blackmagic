@@ -220,12 +220,6 @@ bool platform_check_battery_voltage (void) ;
 #define USBUSART_TIM_IRQ NVIC_TIM4_IRQ
 #define USBUSART_TIM_ISR tim4_isr
 
-
-#define TRACE_TIM TIM3
-#define TRACE_TIM_CLK_EN() rcc_periph_clock_enable(RCC_TIM3)
-#define TRACE_TIM_IRQ   NVIC_TIM3_IRQ
-#define TRACE_TIM_ISR   tim3_isr
-
 #ifdef ENABLE_DEBUG
 extern bool debug_bmp;
 int usbuart_debug_write(const char *buf, size_t len);
