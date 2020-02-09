@@ -34,6 +34,7 @@
 
 #define	GDBServerPort			2159
 #define UART_DebugServerPort	2160
+#define SWO_TraceServerPort		2161
 
 #define INPUT_BUFFER_SIZE	2048
 static unsigned char inputBuffer[INPUT_BUFFER_SIZE] = { 0 }; ///< The input buffer[ input buffer size]
@@ -63,6 +64,12 @@ static bool	g_uartDebugClientConnected = false;
 static bool g_userConfiguredUart = false;
 static bool g_uartDebugServerIsRunning = false;
 static bool	g_newUartDebugClientconncted = false;
+
+static SOCKET swoTraceServerSocket = SOCK_ERR_INVALID; 
+// static SOCKET swoTraceClientSocket = SOCK_ERR_INVALID;
+// static bool	g_swoTraceClientConnected = false;
+// static bool g_swoTraceServerIsRunning = false;
+// static bool	g_newSwoTraceClientconncted = false;
 
 #define	WPS_LOCAL_TIMEOUT	30			// Timeout value in seconds
 
@@ -343,7 +350,7 @@ static enum WiFi_TCPServerStates
 	SM_LISTENING,   ///< An enum constant representing the sm listening option
 	SM_CLOSING, ///< An enum constant representing the sm closing option
 	SM_IDLE,	///< An enum constant representing the sm idle option
-} GDB_TCPServerState = SM_IDLE, UART_DEBUG_TCPServerState = SM_IDLE;
+} GDB_TCPServerState = SM_IDLE, UART_DEBUG_TCPServerState = SM_IDLE, SWO_TRACE_TCPServerState = SM_IDLE;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// <summary> A sockaddr in.</summary>
@@ -405,55 +412,114 @@ void GDB_TCPServer(void)
 }
 
 struct sockaddr_in uart_debug_addr = { 0 };
+struct sockaddr_in swo_trace_addr = { 0 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> UART/Debug TCP Server
+/// <summary> Data TCP Server
 /// 		  
-/// <remarks> Default for ctxLink, will be killed if user enables SWO trace
+/// <remarks> Same method is used to handle the UART and SWO Trace servers. Note only one may be active
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void UART_TCPServer (void)
+void DATA_TCPServer (void)
 {
+	//
+	// UART Server
+	//
 	switch (UART_DEBUG_TCPServerState)
 	{
-	case SM_IDLE:
-		break;		// Startup and testing do nothing state
-	case SM_HOME:
-		//
-		// Allocate a socket for this server to listen and accept connections on
-		//
-		uartDebugServerSocket = socket (AF_INET, SOCK_STREAM, 0);
-		if (uartDebugServerSocket < SOCK_ERR_NO_ERROR)
+		case SM_IDLE:
 		{
-			return;
+			break;		// Startup and testing do nothing state
 		}
-		//
-		// Bind the socket
-		//
-		uart_debug_addr.sin_addr.s_addr = 0;
-		uart_debug_addr.sin_family = AF_INET;
-		uart_debug_addr.sin_port = _htons (UART_DebugServerPort);
-		int8_t result = bind (uartDebugServerSocket, (struct sockaddr *)&uart_debug_addr, sizeof (uart_debug_addr));
-		if (result != SOCK_ERR_NO_ERROR)
+		case SM_HOME:
 		{
-			return;
+			//
+			// Allocate a socket for this server to listen and accept connections on
+			//
+			uartDebugServerSocket = socket (AF_INET, SOCK_STREAM, 0);
+			if (uartDebugServerSocket < SOCK_ERR_NO_ERROR)
+			{
+				return;
+			}
+			//
+			// Bind the socket
+			//
+			uart_debug_addr.sin_addr.s_addr = 0;
+			uart_debug_addr.sin_family = AF_INET;
+			uart_debug_addr.sin_port = _htons (UART_DebugServerPort);
+			int8_t result = bind (uartDebugServerSocket, (struct sockaddr *)&uart_debug_addr, sizeof (uart_debug_addr));
+			if (result != SOCK_ERR_NO_ERROR)
+			{
+				return;
+			}
+			UART_DEBUG_TCPServerState = SM_LISTENING;
+			break;
 		}
-		UART_DEBUG_TCPServerState = SM_LISTENING;
-		break;
-
-	case SM_LISTENING:
-		// 
-		// No need to perform any flush. 
-		// TCP data in TX FIFO will automatically transmit itself after it accumulates for a while.  
-		// If you want to decrease latency (at the expense of wasting network bandwidth on TCP overhead), 
-		// perform and explicit flush via the TCPFlush() API.
-		break;
-
-	case SM_CLOSING:
-		// Close the socket connection.
-		close (uartDebugServerSocket);
-		UART_DEBUG_TCPServerState = SM_HOME;
-		break;
+		case SM_LISTENING:
+		{
+			// 
+			// No need to perform any flush. 
+			// TCP data in TX FIFO will automatically transmit itself after it accumulates for a while.  
+			// If you want to decrease latency (at the expense of wasting network bandwidth on TCP overhead), 
+			// perform and explicit flush via the TCPFlush() API.
+			break;
+		}
+		case SM_CLOSING:
+		{
+			// Close the socket connection.
+			close (uartDebugServerSocket);
+			UART_DEBUG_TCPServerState = SM_HOME;
+			}	break;
+	}
+	//
+	// SWO Trace Data server
+	//
+	switch (SWO_TRACE_TCPServerState)
+	{
+		case SM_IDLE:
+		{
+			break;		// Startup and testing do nothing state
+		}
+		case SM_HOME:
+		{
+			//
+			// Allocate a socket for this server to listen and accept connections on
+			//
+			swoTraceServerSocket = socket (AF_INET, SOCK_STREAM, 0);
+			if (swoTraceServerSocket < SOCK_ERR_NO_ERROR)
+			{
+				return;
+			}
+			//
+			// Bind the socket
+			//
+			swo_trace_addr.sin_addr.s_addr = 0;
+			swo_trace_addr.sin_family = AF_INET;
+			swo_trace_addr.sin_port = _htons (SWO_TraceServerPort);
+			int8_t result = bind (swoTraceServerSocket, (struct sockaddr *)&swo_trace_addr, sizeof (swo_trace_addr));
+			if (result != SOCK_ERR_NO_ERROR)
+			{
+				return;
+			}
+			SWO_TRACE_TCPServerState = SM_LISTENING;
+			break;
+		}
+		case SM_LISTENING:
+		{
+			// 
+			// No need to perform any flush. 
+			// TCP data in TX FIFO will automatically transmit itself after it accumulates for a while.  
+			// If you want to decrease latency (at the expense of wasting network bandwidth on TCP overhead), 
+			// perform and explicit flush via the TCPFlush() API.
+			break;
+		}
+		case SM_CLOSING:
+		{
+			// Close the socket connection.
+			close (swoTraceServerSocket);
+			SWO_TRACE_TCPServerState = SM_HOME;
+			break;
+		}
 	}
 }
 
@@ -1310,6 +1376,7 @@ void APP_Task(void)
 		{
 			GDB_TCPServerState = SM_HOME;
 			UART_DEBUG_TCPServerState = SM_HOME;
+			SWO_TRACE_TCPServerState = SM_IDLE ;	// Will start up when requested
 			//
 			// Wait for the server to come up
 			//

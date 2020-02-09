@@ -9,7 +9,7 @@ extern "C" {
 	void GDB_TCPServer(void);
 	bool isGDBClientConnected(void);
 
-	void UART_TCPServer (void);
+	void DATA_TCPServer (void);
 	bool isUARTClientConnected(void) ;
 	void SendUartData(uint8_t *lpBuffer, uint8_t length) ;
 
