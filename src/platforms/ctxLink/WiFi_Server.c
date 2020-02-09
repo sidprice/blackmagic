@@ -522,16 +522,42 @@ void DATA_TCPServer (void)
 		}
 	}
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Callback, called when the application WiFi.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-///
-/// <param name="msgType"> Type of the message.</param>
-/// <param name="pvMsg">   [in,out] If non-null, message describing the pv.</param>
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/**
+ * @brief 
+ * 
+ */
+void WiFi_setupSwoTraceServer(void)
+{
+	//
+	// Is there a UART client connected?
+	//
+	if(g_uartDebugClientConnected)
+	{
+		// Close the connection to the client
+		close (uartDebugClientSocket);
+		uartDebugClientSocket = SOCK_ERR_INVALID;	// Mark socket invalid
+		g_uartDebugClientConnected = false;			// No longer connected
+		g_userConfiguredUart = false;
+	}
+	//
+	// If the UART server is up, close it timeDown
+	//
+	if (uartDebugServerSocket != SOCK_ERR_INVALID)
+	{
+		close(uartDebugServerSocket) ;
+		uartDebugServerSocket = SOCK_ERR_INVALID;
+	}
+	//
+	// Set up the SWO Trace Server
+	//
+	UART_DEBUG_TCPServerState = SM_HOME ;
+}
+/**
+ * @brief WINC1500 WiFi callback function
+ * 
+ * @param msgType 
+ * @param pvMsg 
+ */
 static void AppWifiCallback(uint8_t msgType, void *pvMsg)
 {   
 		switch (msgType)
@@ -1031,9 +1057,7 @@ static void AppSocketCallback(SOCKET sock, uint8_t msgType, void *pvMsg)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Query if this object is server running.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
+/// <summary> Is GDB server running.</summary>
 ///
 /// <returns> True if server running, false if not.</returns>
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1043,6 +1067,15 @@ bool isGDBServerRunning(void)
 	return g_gdbServerIsRunning ;
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/// <summary> Is SWO Trace server running.</summary>
+///
+/// <returns> True if server running, false if not.</returns>
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool swoTraceServerActive(void)
+{
+	return false ;
+}
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// <summary> Query if this object is DNS resolved.</summary>
 ///

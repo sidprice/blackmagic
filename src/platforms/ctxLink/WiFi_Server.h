@@ -13,6 +13,9 @@ extern "C" {
 	bool isUARTClientConnected(void) ;
 	void SendUartData(uint8_t *lpBuffer, uint8_t length) ;
 
+	bool swoTraceServerActive(void) ;
+	void WiFi_setupSwoTraceServer(void) ;
+
 	void WiFi_gdb_putchar(unsigned char c, int flush);
 	bool WiFi_GotClient( void );
 	unsigned char WiFi_GetNext(void);

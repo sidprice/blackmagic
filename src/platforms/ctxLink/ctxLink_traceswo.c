@@ -33,6 +33,7 @@
 #include "cdcacm.h"
 #include "traceswo.h"
 #include "platform.h"
+#include "WiFi_Server.h"
 
 #include <libopencm3/cm3/common.h>
 #include <libopencmsis/core_cm3.h>
@@ -160,6 +161,11 @@ void traceswo_init(uint32_t baudrate)
 	usart_set_parity(SWO_UART, USART_PARITY_NONE);
 	usart_set_flow_control(SWO_UART, USART_FLOWCONTROL_NONE);
 	usart_enable(SWO_UART);
+	// Check if SWO Trace Srver is already active
+	if ( !swoTraceServerActive())
+	{
+		WiFi_setupSwoTraceServer() ;
+	}
 	// Enable interrupts
 	SWO_UART_CR1 |= USART_CR1_RXNEIE;
 	nvic_set_priority(SWO_UART_IRQ, IRQ_PRI_SWOUSART);
