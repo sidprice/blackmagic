@@ -15,6 +15,8 @@ extern "C" {
 
 	bool swoTraceServerActive(void) ;
 	void WiFi_setupSwoTraceServer(void) ;
+	bool isSwoTraceClientConnected(void) ;
+	void SendSwoTraceData(uint8_t *lpBuffer, uint8_t length);
 
 	void WiFi_gdb_putchar(unsigned char c, int flush);
 	bool WiFi_GotClient( void );

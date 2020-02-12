@@ -87,11 +87,16 @@ void _trace_buf_drain(usbd_device *dev, uint8_t ep)
 	// Bump the pingpong buffer selection
 	//
 	bufferSelect = (bufferSelect+1) % NUM_PINGPONG_BUFFERS ;
-
-	if (usbd_ep_write_packet(dev, ep, bufferStart, outCount) == outCount)
+	//
+	if (isSwoTraceClientConnected())
 	{
-		__atomic_fetch_sub(&bufferSize, outCount, __ATOMIC_RELAXED);
+		SendSwoTraceData(bufferStart, outCount) ;
 	}
+	else
+	{
+		usbd_ep_write_packet(dev, ep, bufferStart, outCount) ;
+	}
+	__atomic_fetch_sub(&bufferSize, outCount, __ATOMIC_RELAXED);
 }
 
 void trace_buf_drain(usbd_device *dev, uint8_t ep)
@@ -101,6 +106,7 @@ void trace_buf_drain(usbd_device *dev, uint8_t ep)
 
 #define	TRACE_TIM_COMPARE_VALUE	2000
 
+static volatile uint32_t errCount = 0 ;
 void SWO_UART_ISR(void)
 {
 	uint32_t err = USART_SR(SWO_UART);
@@ -108,6 +114,7 @@ void SWO_UART_ISR(void)
 
 	if (err & (USART_FLAG_ORE | USART_FLAG_FE | USART_SR_NE))
 	{
+		errCount++ ;
 		return;
 	}
 	/* If the next increment of rx_in would put it at the same point
@@ -161,10 +168,17 @@ void traceswo_init(uint32_t baudrate)
 	usart_set_parity(SWO_UART, USART_PARITY_NONE);
 	usart_set_flow_control(SWO_UART, USART_FLOWCONTROL_NONE);
 	usart_enable(SWO_UART);
-	// Check if SWO Trace Srver is already active
-	if ( !swoTraceServerActive())
+	//
+	// If we have a network client for GDB, ensure
+	// the SWO Trace server is active
+	//
+	if (isGDBClientConnected())
 	{
-		WiFi_setupSwoTraceServer() ;
+		// Check if SWO Trace Server is already active
+		if ( !swoTraceServerActive())
+		{
+			WiFi_setupSwoTraceServer() ;
+		}
 	}
 	// Enable interrupts
 	SWO_UART_CR1 |= USART_CR1_RXNEIE;

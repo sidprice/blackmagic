@@ -66,10 +66,13 @@ static bool g_uartDebugServerIsRunning = false;
 static bool	g_newUartDebugClientconncted = false;
 
 static SOCKET swoTraceServerSocket = SOCK_ERR_INVALID; 
-// static SOCKET swoTraceClientSocket = SOCK_ERR_INVALID;
-// static bool	g_swoTraceClientConnected = false;
-// static bool g_swoTraceServerIsRunning = false;
-// static bool	g_newSwoTraceClientconncted = false;
+static SOCKET swoTraceClientSocket = SOCK_ERR_INVALID;
+static bool	g_swoTraceClientConnected = false;
+static bool g_swoTraceServerIsRunning = false;
+static bool	g_newSwoTraceClientconncted = false;
+
+#define SWO_TRACE_INPUT_BUFFER_SIZE 32
+static unsigned char localSwoTraceBuffer[SWO_TRACE_INPUT_BUFFER_SIZE] = { 0 };	///< The local buffer[ input buffer size]
 
 #define	WPS_LOCAL_TIMEOUT	30			// Timeout value in seconds
 
@@ -138,6 +141,12 @@ unsigned volatile	uiUartDebugSendQueueIn = 0;				///< The send queue in
 unsigned volatile	uiUartDebugSendQueueOut = 0;			///< The send queue out
 unsigned volatile	uiUartDebugSendQueueLength = 0;			///< Length of the send queue
 void DoUartDebugSend (void);
+
+SEND_QUEUE_ENTRY	swoTraceSendQueue[SEND_QUEUE_SIZE] = { 0 }; ///< The send queue[ send queue size]
+unsigned volatile	uiSwoTraceSendQueueIn = 0;				///< The send queue in
+unsigned volatile	uiSwoTraceSendQueueOut = 0;			///< The send queue out
+unsigned volatile	uiSwoTraceSendQueueLength = 0;			///< Length of the send queue
+void DoSwoTraceSend (void);
 
 static bool pressActive = false; ///< True to press active
 bool wpsActive = false;			 ///< True to wps active
@@ -550,7 +559,7 @@ void WiFi_setupSwoTraceServer(void)
 	//
 	// Set up the SWO Trace Server
 	//
-	UART_DEBUG_TCPServerState = SM_HOME ;
+	SWO_TRACE_TCPServerState = SM_HOME ;
 }
 /**
  * @brief WINC1500 WiFi callback function
@@ -790,6 +799,11 @@ void processRecvError (SOCKET socket, t_socketRecv *lpRecvData, uint8_t msgType)
 				g_uartDebugClientConnected = false;			// No longer connected
 				g_userConfiguredUart = false;
 			}
+			else if (socket == swoTraceClientSocket) {
+				close (swoTraceClientSocket);
+				swoTraceClientSocket = SOCK_ERR_INVALID;	// Mark socket invalid
+				g_swoTraceClientConnected = false;			// No longer connected
+			}
 			dprintf ("APP_SOCK_CB[%d]: Connection closed by peer\r\n", msgType);
 			break;
 		}
@@ -859,6 +873,10 @@ static void AppSocketCallback(SOCKET sock, uint8_t msgType, void *pvMsg)
 			{
 				handleSocketBindEvent (&uartDebugServerSocket, &g_uartDebugServerIsRunning) ;
 			}
+			else if(sock == swoTraceServerSocket)
+			{
+				handleSocketBindEvent (&swoTraceServerSocket, &g_swoTraceServerIsRunning) ;
+			}
 			else
 			{
 				//
@@ -880,6 +898,10 @@ static void AppSocketCallback(SOCKET sock, uint8_t msgType, void *pvMsg)
 			else if (sock == uartDebugServerSocket)
 			{
 				handleSocketListenEvent (&uartDebugServerSocket, &g_uartDebugServerIsRunning);
+			}
+			else if(sock == swoTraceServerSocket)
+			{
+				handleSocketListenEvent (&swoTraceServerSocket, &g_swoTraceServerIsRunning);
 			}
 			else
 			{
@@ -907,6 +929,10 @@ static void AppSocketCallback(SOCKET sock, uint8_t msgType, void *pvMsg)
 				usart_set_baudrate (USBUSART, 0);
 				handleSocketAcceptEvent (pAcceptData, &uartDebugClientSocket, &g_uartDebugClientConnected, &g_newUartDebugClientconncted, msgType);
 				send (uartDebugClientSocket, &uartClientSignon[0], strlen(&uartClientSignon[0]), 0);
+			}
+			else if (sock == swoTraceServerSocket)
+			{
+				handleSocketAcceptEvent (pAcceptData, &swoTraceClientSocket, &g_swoTraceClientConnected, &g_newSwoTraceClientconncted, msgType);
 			}
 			else
 			{
@@ -989,6 +1015,16 @@ static void AppSocketCallback(SOCKET sock, uint8_t msgType, void *pvMsg)
 					// 
 					recv (uartDebugClientSocket, &localUartDebugBuffer[0], UART_DEBUG_INPUT_BUFFER_SIZE, 0);
 				}
+			}
+			else if (sock == swoTraceClientSocket)
+			{
+				if (pRecvData->bufSize > 0)
+				{
+					//
+					// Setup to receive future data
+					// 
+					recv (swoTraceClientSocket, &localSwoTraceBuffer[0], SWO_TRACE_INPUT_BUFFER_SIZE, 0);
+				}
 				else
 				{
 					processRecvError (sock, pRecvData, msgType);
@@ -1025,6 +1061,15 @@ static void AppSocketCallback(SOCKET sock, uint8_t msgType, void *pvMsg)
 				if (uiUartDebugSendQueueLength != 0)
 				{
 					DoUartDebugSend ();
+				}
+			}
+			else if (sock == swoTraceClientSocket)
+			{
+				uiSwoTraceSendQueueOut = (uiSwoTraceSendQueueOut + 1) % SEND_QUEUE_SIZE;
+				uiSwoTraceSendQueueLength -= 1;
+				if (uiSwoTraceSendQueueLength != 0)
+				{
+					DoSwoTraceSend ();
 				}
 			}
 			else
@@ -1074,7 +1119,7 @@ bool isGDBServerRunning(void)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 bool swoTraceServerActive(void)
 {
-	return false ;
+	return swoTraceServerSocket != SOCK_ERR_INVALID ;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// <summary> Query if this object is DNS resolved.</summary>
@@ -1109,6 +1154,11 @@ bool isGDBClientConnected(void)
 bool isUARTClientConnected(void)
 {
 	return g_userConfiguredUart;
+}
+
+bool isSwoTraceClientConnected(void)
+{
+	return g_swoTraceClientConnected;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// <summary> Application initialize.</summary>
@@ -1452,6 +1502,11 @@ void APP_Task(void)
 				g_newUartDebugClientconncted = false;
 				recv (uartDebugClientSocket, &localUartDebugBuffer[0], UART_DEBUG_INPUT_BUFFER_SIZE, 0);
 			}
+			if (g_newSwoTraceClientconncted == true)
+			{
+				g_newSwoTraceClientconncted = false;
+				recv (swoTraceClientSocket, &localSwoTraceBuffer[0], SWO_TRACE_INPUT_BUFFER_SIZE, 0);
+			}
 			break;
 		}
 		
@@ -1672,6 +1727,15 @@ void DoUartDebugSend (void)
 	m2mStub_EintEnable ();
 }
 
+void DoSwoTraceSend (void)
+{
+	send (swoTraceClientSocket, &(swoTraceSendQueue[uiSwoTraceSendQueueOut].packet[0]), swoTraceSendQueue[uiSwoTraceSendQueueOut].len, 0);
+	// m2mStub_EintDisable ();
+	// uiSwoTraceSendQueueOut = (uiSwoTraceSendQueueOut + 1) % SEND_QUEUE_SIZE;
+	// uiSwoTraceSendQueueLength -= 1;
+	// m2mStub_EintEnable ();
+}
+
 void SendUartData(uint8_t *lpBuffer, uint8_t length)
 {
 	m2mStub_EintDisable ();
@@ -1681,6 +1745,31 @@ void SendUartData(uint8_t *lpBuffer, uint8_t length)
 	uiUartDebugSendQueueLength += 1 ;
 	m2mStub_EintEnable ();
 	DoUartDebugSend() ;
+}
+
+void SendSwoTraceData(uint8_t *lpBuffer, uint8_t length)
+{
+	bool	sendIt = false ;
+
+	m2mStub_EintDisable ();
+	memcpy(swoTraceSendQueue[uiSwoTraceSendQueueIn].packet, lpBuffer, length) ;
+	swoTraceSendQueue[uiSwoTraceSendQueueIn].len = length ;
+	uiSwoTraceSendQueueIn = (uiSwoTraceSendQueueIn + 1) % SEND_QUEUE_SIZE ;
+	uiSwoTraceSendQueueLength += 1 ;
+	if ( uiSwoTraceSendQueueLength == 1)	//First data?
+	{
+		sendIt = true ;
+	}
+	else
+	{
+		sendIt = false ;
+	}
+	
+	m2mStub_EintEnable ();
+	if ( sendIt)
+	{
+		DoSwoTraceSend();
+	}	
 }
 
 static unsigned char sendBuffer[1024] = { 0 };  ///< The send buffer[ 1024]
