@@ -31,6 +31,7 @@
 #include "winc1500_driver_api_helpers.h"
 #include "wf_socket.h"
 
+void traceSendData(void) ;
 
 #define	GDBServerPort			2159
 #define UART_DebugServerPort	2160
@@ -1515,6 +1516,10 @@ void APP_Task(void)
 			dprintf("APP_TASK[%d]: Unknown state.\r\n", appState) ;	
 		}
 	}
+	//
+	// Check for swo trace data
+	//
+	traceSendData() ;
 	//
 	// Run the mode led task?
 	//

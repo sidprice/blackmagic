@@ -57,6 +57,35 @@ static uint8_t trace_rx_buf[BUFFER_SIZE] = {0} ;
 #define NUM_PINGPONG_BUFFERS	2
 static uint8_t pingpongBuffers[NUM_PINGPONG_BUFFERS * FULL_SWO_PACKET] = {0} ;
 static uint32_t bufferSelect = 0 ;
+//
+// Check for SWO Trace nework client, if present send
+// any queued data
+//
+static uint8_t swoData[BUFFER_SIZE] ;
+void traceSendData(void)
+{
+	if ( isSwoTraceClientConnected())
+	{
+		uint32_t dataCount ;
+		__atomic_load(&bufferSize, &dataCount, __ATOMIC_RELAXED) ;
+		if ( dataCount >= FULL_SWO_PACKET)
+		{
+			//
+			// Copy the data
+			//
+			for ( uint32_t i = 0 ; i < dataCount ;i++)
+			{
+				swoData[i] = trace_rx_buf[outBuf++] ;
+				if ( outBuf >= BUFFER_SIZE)
+				{
+					outBuf = 0 ;
+				}
+			}
+			SendSwoTraceData(&swoData[0],dataCount) ;
+			__atomic_fetch_sub(&bufferSize, dataCount, __ATOMIC_RELAXED);
+		}
+	}
+}
 
 void _trace_buf_drain(usbd_device *dev, uint8_t ep)
 {
@@ -67,6 +96,15 @@ void _trace_buf_drain(usbd_device *dev, uint8_t ep)
 	if (outCount == 0)
 	{
 		return;
+	}
+	//
+	// If we have an SWO network client there is no more
+	// to do. The network code will pick up the data 
+	// and deal with it directly out of the trace_rx_buf
+	//
+	if ( isSwoTraceClientConnected())
+	{
+		return ;
 	}
 	//
 	// Set up the pointer to grab the data
@@ -87,15 +125,7 @@ void _trace_buf_drain(usbd_device *dev, uint8_t ep)
 	// Bump the pingpong buffer selection
 	//
 	bufferSelect = (bufferSelect+1) % NUM_PINGPONG_BUFFERS ;
-	//
-	if (isSwoTraceClientConnected())
-	{
-		SendSwoTraceData(bufferStart, outCount) ;
-	}
-	else
-	{
 		usbd_ep_write_packet(dev, ep, bufferStart, outCount) ;
-	}
 	__atomic_fetch_sub(&bufferSize, outCount, __ATOMIC_RELAXED);
 }
 
