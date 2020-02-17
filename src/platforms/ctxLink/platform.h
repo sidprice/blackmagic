@@ -149,12 +149,12 @@ bool platform_check_battery_voltage (void) ;
 // Define the following symbol to disable the Mode LED
 // and allow it to be used for instrumentation
 //
-// #define	INSTRUMENT	1
+#define	INSTRUMENT	1
 
 #ifdef INSTRUMENT
-#define INSTRUMENT_TOGGLE	gpio_toggle(LED_PORT, LED_3)
-#define INSTRUMENT_ON		gpio_set(LED_PORT, LED_3)
-#define INSTRUMENT_OFF		gpio_clear(LED_PORT, LED_3)
+#define INSTRUMENT_TOGGLE(x)	gpio_toggle(LED_PORT, x)
+#define INSTRUMENT_ON(x)		gpio_set(LED_PORT, x)
+#define INSTRUMENT_OFF(x)		gpio_clear(LED_PORT, x)
 #endif
 
 //

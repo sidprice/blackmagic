@@ -125,7 +125,10 @@ void _trace_buf_drain(usbd_device *dev, uint8_t ep)
 	// Bump the pingpong buffer selection
 	//
 	bufferSelect = (bufferSelect+1) % NUM_PINGPONG_BUFFERS ;
-		usbd_ep_write_packet(dev, ep, bufferStart, outCount) ;
+	if (usbd_ep_write_packet(dev, ep, bufferStart, outCount) != outCount)
+	{
+		INSTRUMENT_TOGGLE(LED_3) ;
+	}
 	__atomic_fetch_sub(&bufferSize, outCount, __ATOMIC_RELAXED);
 }
 
@@ -172,6 +175,7 @@ void SWO_UART_ISR(void)
 		// if (outCount >= FULL_SWO_PACKET)
 		if (outCount >= FULL_SWO_PACKET)
 		{
+			INSTRUMENT_TOGGLE(LED_2) ;
 			_trace_buf_drain(usbdev, USB_TRACESWO_ENDPOINT) ;
 		}
 	}
