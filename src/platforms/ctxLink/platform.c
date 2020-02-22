@@ -50,7 +50,6 @@
 static void adc_init( void );
 int usbuart_debug_write(const char *buf, size_t len);
 void gdb_if_putchar(unsigned char c, int flush);
-
 #if 0
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -360,7 +359,7 @@ void platform_tasks(void)
 	}
 	m2m_wifi_task();			// WINC1500 tasks
 	GDB_TCPServer();			// Run the TCP sever state machine
-	UART_TCPServer ();			// Run the Uart/Debug TCP server
+	DATA_TCPServer ();			// Run the Uart/Debug TCP server
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -468,7 +467,6 @@ static uint8_t	adcChannels[] = { CTXLINK_BATTERY_INPUT, CTXLINK_TARGET_VOLTAGE_I
 
 void platform_adc_read (void)
 {
-	// PROBE_PIN;
 	adc_set_regular_sequence (ADC1, 1, &(adcChannels[CTXLINK_ADC_BATTERY]));
 	adc_start_conversion_regular (ADC1);
 	/* Wait for end of conversion. */

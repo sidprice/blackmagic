@@ -33,12 +33,6 @@
 
 #include <setjmp.h>
 
-//
-// Define the following symbol to disable the Mode LED
-// and allow it to be used for instrumentation
-//
-//#define	INSTRUMENT	1
-
 #define PLATFORM_HAS_TRACESWO
 #define PLATFORM_HAS_POWER_SWITCH
 #define PLATFORM_HAS_BATTERY
@@ -64,7 +58,7 @@ bool platform_check_battery_voltage (void) ;
 /* Important pin mappings for ctxLink implementation:
  *
  * LED0 = 	PB2				:	(Blue  LED	: LED_UART)
- * LED1 = 	PC7				:	(Green LED	: Idle)
+ * LED1 = 	PC6				:	(Green LED	: Idle/RUN)
  * LED2 = 	PC8				:	(Red LED	: Error)
  * LED3 =	PC9				:	(Green LED	: ctxLink Mode)
  *
@@ -90,12 +84,12 @@ bool platform_check_battery_voltage (void) ;
 #define TMS_DIR_PORT	JTAG_PORT
 #define TMS_PORT	JTAG_PORT
 #define TCK_PORT	JTAG_PORT
-#define TDO_PORT	JTAG_PORT
+#define TDO_PORT	GPIOC
 #define TDI_PIN		GPIO3
 #define TMS_DIR_PIN	GPIO1
 #define TMS_PIN		GPIO4
 #define TCK_PIN		GPIO5
-#define TDO_PIN		GPIO6
+#define TDO_PIN		GPIO7
 
 #define SWDIO_DIR_PORT	JTAG_PORT
 #define SWDIO_PORT 	JTAG_PORT
@@ -112,6 +106,20 @@ bool platform_check_battery_voltage (void) ;
 #define SRST_SENSE_PORT	GPIOA
 #define SRST_SENSE_PIN	GPIO7
 
+//
+// SWO UART definitions
+//
+#define	SWO_UART			USART6
+#define SWO_UART_CR1		USART6_CR1
+#define SWO_UART_DR			USART6_DR
+#define SWO_UART_CLK		RCC_USART6
+#define SWO_UART_PORT		GPIOC
+#define SWO_UART_RX_PIN		GPIO7
+#define SWO_UART_ISR		usart6_isr
+#define SWO_UART_IRQ		NVIC_USART6_IRQ
+
+#define TRACESWO_PROTOCOL		2			/* 1 = Manchester, 2 = NRZ / async */
+
 #define USB_PU_PORT	GPIOA
 #define USB_PU_PIN	GPIO8
 
@@ -122,7 +130,7 @@ bool platform_check_battery_voltage (void) ;
 #define LED_PORT		GPIOC
 #define LED_PORT_UART	GPIOB
 #define LED_0		GPIO2
-#define LED_1		GPIO7
+#define LED_1		GPIO6
 #define LED_2		GPIO8
 #define	LED_3		GPIO9
 #define LED_UART	LED_0
@@ -136,10 +144,18 @@ bool platform_check_battery_voltage (void) ;
 //
 #define SWITCH_PORT	GPIOB
 #define SW_BOOTLOADER_PIN	GPIO12
+
 //
-// Use the UART Led as a probe foe debug
-// 
-#define PROBE_PIN gpio_toggle (LED_PORT_UART, LED_UART)
+// Define the following symbol to disable the Mode LED
+// and allow it to be used for instrumentation
+//
+// #define	INSTRUMENT	1
+
+#ifdef INSTRUMENT
+#define INSTRUMENT_TOGGLE(x)	gpio_toggle(LED_PORT, x)
+#define INSTRUMENT_ON(x)		gpio_set(LED_PORT, x)
+#define INSTRUMENT_OFF(x)		gpio_clear(LED_PORT, x)
+#endif
 
 //
 // Target voltage input
@@ -180,12 +196,12 @@ bool platform_check_battery_voltage (void) ;
 #define USB_ISR         otg_fs_isr
 /* Interrupt priorities.  Low numbers are high priority.
  * For now USART1 preempts USB which may spin while buffer is drained.
- * TIM3 is used for traceswo capture and must be highest priority.
  */
-#define IRQ_PRI_USB		(2 << 4)
-#define IRQ_PRI_USBUSART	(1 << 4)
+#define IRQ_PRI_USB				(2 << 4)
+#define IRQ_PRI_USBUSART		(1 << 4)
 #define IRQ_PRI_USBUSART_TIM	(3 << 4)
-#define IRQ_PRI_TRACE		(0 << 4)
+#define IRQ_PRI_SWOUSART		(1 << 4 )
+#define IRQ_PRI_TRACE_TIM		(3 << 4)
 
 #define USBUSART USART1
 #define USBUSART_CR1 USART1_CR1
@@ -202,12 +218,6 @@ bool platform_check_battery_voltage (void) ;
 #define USBUSART_TIM_CLK_EN() rcc_periph_clock_enable(RCC_TIM4)
 #define USBUSART_TIM_IRQ NVIC_TIM4_IRQ
 #define USBUSART_TIM_ISR tim4_isr
-
-
-#define TRACE_TIM TIM3
-#define TRACE_TIM_CLK_EN() rcc_periph_clock_enable(RCC_TIM3)
-#define TRACE_IRQ   NVIC_TIM3_IRQ
-#define TRACE_ISR   tim3_isr
 
 #ifdef ENABLE_DEBUG
 extern bool debug_bmp;

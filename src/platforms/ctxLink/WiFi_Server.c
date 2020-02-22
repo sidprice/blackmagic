@@ -31,9 +31,11 @@
 #include "winc1500_driver_api_helpers.h"
 #include "wf_socket.h"
 
+void traceSendData(void) ;
 
 #define	GDBServerPort			2159
 #define UART_DebugServerPort	2160
+#define SWO_TraceServerPort		2161
 
 #define INPUT_BUFFER_SIZE	2048
 static unsigned char inputBuffer[INPUT_BUFFER_SIZE] = { 0 }; ///< The input buffer[ input buffer size]
@@ -63,6 +65,15 @@ static bool	g_uartDebugClientConnected = false;
 static bool g_userConfiguredUart = false;
 static bool g_uartDebugServerIsRunning = false;
 static bool	g_newUartDebugClientconncted = false;
+
+static SOCKET swoTraceServerSocket = SOCK_ERR_INVALID; 
+static SOCKET swoTraceClientSocket = SOCK_ERR_INVALID;
+static bool	g_swoTraceClientConnected = false;
+static bool g_swoTraceServerIsRunning = false;
+static bool	g_newSwoTraceClientconncted = false;
+
+#define SWO_TRACE_INPUT_BUFFER_SIZE 32
+static unsigned char localSwoTraceBuffer[SWO_TRACE_INPUT_BUFFER_SIZE] = { 0 };	///< The local buffer[ input buffer size]
 
 #define	WPS_LOCAL_TIMEOUT	30			// Timeout value in seconds
 
@@ -131,6 +142,12 @@ unsigned volatile	uiUartDebugSendQueueIn = 0;				///< The send queue in
 unsigned volatile	uiUartDebugSendQueueOut = 0;			///< The send queue out
 unsigned volatile	uiUartDebugSendQueueLength = 0;			///< Length of the send queue
 void DoUartDebugSend (void);
+
+SEND_QUEUE_ENTRY	swoTraceSendQueue[SEND_QUEUE_SIZE] = { 0 }; ///< The send queue[ send queue size]
+unsigned volatile	uiSwoTraceSendQueueIn = 0;				///< The send queue in
+unsigned volatile	uiSwoTraceSendQueueOut = 0;			///< The send queue out
+unsigned volatile	uiSwoTraceSendQueueLength = 0;			///< Length of the send queue
+void DoSwoTraceSend (void);
 
 static bool pressActive = false; ///< True to press active
 bool wpsActive = false;			 ///< True to wps active
@@ -343,7 +360,7 @@ static enum WiFi_TCPServerStates
 	SM_LISTENING,   ///< An enum constant representing the sm listening option
 	SM_CLOSING, ///< An enum constant representing the sm closing option
 	SM_IDLE,	///< An enum constant representing the sm idle option
-} GDB_TCPServerState = SM_IDLE, UART_DEBUG_TCPServerState = SM_IDLE;
+} GDB_TCPServerState = SM_IDLE, UART_DEBUG_TCPServerState = SM_IDLE, SWO_TRACE_TCPServerState = SM_IDLE;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// <summary> A sockaddr in.</summary>
@@ -405,67 +422,152 @@ void GDB_TCPServer(void)
 }
 
 struct sockaddr_in uart_debug_addr = { 0 };
+struct sockaddr_in swo_trace_addr = { 0 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> UART/Debug TCP Server
+/// <summary> Data TCP Server
 /// 		  
-/// <remarks> Default for ctxLink, will be killed if user enables SWO trace
+/// <remarks> Same method is used to handle the UART and SWO Trace servers. Note only one may be active
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void UART_TCPServer (void)
+void DATA_TCPServer (void)
 {
+	//
+	// UART Server
+	//
 	switch (UART_DEBUG_TCPServerState)
 	{
-	case SM_IDLE:
-		break;		// Startup and testing do nothing state
-	case SM_HOME:
-		//
-		// Allocate a socket for this server to listen and accept connections on
-		//
-		uartDebugServerSocket = socket (AF_INET, SOCK_STREAM, 0);
-		if (uartDebugServerSocket < SOCK_ERR_NO_ERROR)
+		case SM_IDLE:
 		{
-			return;
+			break;		// Startup and testing do nothing state
 		}
-		//
-		// Bind the socket
-		//
-		uart_debug_addr.sin_addr.s_addr = 0;
-		uart_debug_addr.sin_family = AF_INET;
-		uart_debug_addr.sin_port = _htons (UART_DebugServerPort);
-		int8_t result = bind (uartDebugServerSocket, (struct sockaddr *)&uart_debug_addr, sizeof (uart_debug_addr));
-		if (result != SOCK_ERR_NO_ERROR)
+		case SM_HOME:
 		{
-			return;
+			//
+			// Allocate a socket for this server to listen and accept connections on
+			//
+			uartDebugServerSocket = socket (AF_INET, SOCK_STREAM, 0);
+			if (uartDebugServerSocket < SOCK_ERR_NO_ERROR)
+			{
+				return;
+			}
+			//
+			// Bind the socket
+			//
+			uart_debug_addr.sin_addr.s_addr = 0;
+			uart_debug_addr.sin_family = AF_INET;
+			uart_debug_addr.sin_port = _htons (UART_DebugServerPort);
+			int8_t result = bind (uartDebugServerSocket, (struct sockaddr *)&uart_debug_addr, sizeof (uart_debug_addr));
+			if (result != SOCK_ERR_NO_ERROR)
+			{
+				return;
+			}
+			UART_DEBUG_TCPServerState = SM_LISTENING;
+			break;
 		}
-		UART_DEBUG_TCPServerState = SM_LISTENING;
-		break;
-
-	case SM_LISTENING:
-		// 
-		// No need to perform any flush. 
-		// TCP data in TX FIFO will automatically transmit itself after it accumulates for a while.  
-		// If you want to decrease latency (at the expense of wasting network bandwidth on TCP overhead), 
-		// perform and explicit flush via the TCPFlush() API.
-		break;
-
-	case SM_CLOSING:
-		// Close the socket connection.
-		close (uartDebugServerSocket);
-		UART_DEBUG_TCPServerState = SM_HOME;
-		break;
+		case SM_LISTENING:
+		{
+			// 
+			// No need to perform any flush. 
+			// TCP data in TX FIFO will automatically transmit itself after it accumulates for a while.  
+			// If you want to decrease latency (at the expense of wasting network bandwidth on TCP overhead), 
+			// perform and explicit flush via the TCPFlush() API.
+			break;
+		}
+		case SM_CLOSING:
+		{
+			// Close the socket connection.
+			close (uartDebugServerSocket);
+			UART_DEBUG_TCPServerState = SM_HOME;
+			}	break;
+	}
+	//
+	// SWO Trace Data server
+	//
+	switch (SWO_TRACE_TCPServerState)
+	{
+		case SM_IDLE:
+		{
+			break;		// Startup and testing do nothing state
+		}
+		case SM_HOME:
+		{
+			//
+			// Allocate a socket for this server to listen and accept connections on
+			//
+			swoTraceServerSocket = socket (AF_INET, SOCK_STREAM, 0);
+			if (swoTraceServerSocket < SOCK_ERR_NO_ERROR)
+			{
+				return;
+			}
+			//
+			// Bind the socket
+			//
+			swo_trace_addr.sin_addr.s_addr = 0;
+			swo_trace_addr.sin_family = AF_INET;
+			swo_trace_addr.sin_port = _htons (SWO_TraceServerPort);
+			int8_t result = bind (swoTraceServerSocket, (struct sockaddr *)&swo_trace_addr, sizeof (swo_trace_addr));
+			if (result != SOCK_ERR_NO_ERROR)
+			{
+				return;
+			}
+			SWO_TRACE_TCPServerState = SM_LISTENING;
+			break;
+		}
+		case SM_LISTENING:
+		{
+			// 
+			// No need to perform any flush. 
+			// TCP data in TX FIFO will automatically transmit itself after it accumulates for a while.  
+			// If you want to decrease latency (at the expense of wasting network bandwidth on TCP overhead), 
+			// perform and explicit flush via the TCPFlush() API.
+			break;
+		}
+		case SM_CLOSING:
+		{
+			// Close the socket connection.
+			close (swoTraceServerSocket);
+			SWO_TRACE_TCPServerState = SM_HOME;
+			break;
+		}
 	}
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Callback, called when the application WiFi.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-///
-/// <param name="msgType"> Type of the message.</param>
-/// <param name="pvMsg">   [in,out] If non-null, message describing the pv.</param>
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/**
+ * @brief 
+ * 
+ */
+void WiFi_setupSwoTraceServer(void)
+{
+	//
+	// Is there a UART client connected?
+	//
+	if(g_uartDebugClientConnected)
+	{
+		// Close the connection to the client
+		close (uartDebugClientSocket);
+		uartDebugClientSocket = SOCK_ERR_INVALID;	// Mark socket invalid
+		g_uartDebugClientConnected = false;			// No longer connected
+		g_userConfiguredUart = false;
+	}
+	//
+	// If the UART server is up, close it timeDown
+	//
+	if (uartDebugServerSocket != SOCK_ERR_INVALID)
+	{
+		close(uartDebugServerSocket) ;
+		uartDebugServerSocket = SOCK_ERR_INVALID;
+	}
+	//
+	// Set up the SWO Trace Server
+	//
+	SWO_TRACE_TCPServerState = SM_HOME ;
+}
+/**
+ * @brief WINC1500 WiFi callback function
+ * 
+ * @param msgType 
+ * @param pvMsg 
+ */
 static void AppWifiCallback(uint8_t msgType, void *pvMsg)
 {   
 		switch (msgType)
@@ -698,6 +800,11 @@ void processRecvError (SOCKET socket, t_socketRecv *lpRecvData, uint8_t msgType)
 				g_uartDebugClientConnected = false;			// No longer connected
 				g_userConfiguredUart = false;
 			}
+			else if (socket == swoTraceClientSocket) {
+				close (swoTraceClientSocket);
+				swoTraceClientSocket = SOCK_ERR_INVALID;	// Mark socket invalid
+				g_swoTraceClientConnected = false;			// No longer connected
+			}
 			dprintf ("APP_SOCK_CB[%d]: Connection closed by peer\r\n", msgType);
 			break;
 		}
@@ -767,6 +874,10 @@ static void AppSocketCallback(SOCKET sock, uint8_t msgType, void *pvMsg)
 			{
 				handleSocketBindEvent (&uartDebugServerSocket, &g_uartDebugServerIsRunning) ;
 			}
+			else if(sock == swoTraceServerSocket)
+			{
+				handleSocketBindEvent (&swoTraceServerSocket, &g_swoTraceServerIsRunning) ;
+			}
 			else
 			{
 				//
@@ -788,6 +899,10 @@ static void AppSocketCallback(SOCKET sock, uint8_t msgType, void *pvMsg)
 			else if (sock == uartDebugServerSocket)
 			{
 				handleSocketListenEvent (&uartDebugServerSocket, &g_uartDebugServerIsRunning);
+			}
+			else if(sock == swoTraceServerSocket)
+			{
+				handleSocketListenEvent (&swoTraceServerSocket, &g_swoTraceServerIsRunning);
 			}
 			else
 			{
@@ -815,6 +930,10 @@ static void AppSocketCallback(SOCKET sock, uint8_t msgType, void *pvMsg)
 				usart_set_baudrate (USBUSART, 0);
 				handleSocketAcceptEvent (pAcceptData, &uartDebugClientSocket, &g_uartDebugClientConnected, &g_newUartDebugClientconncted, msgType);
 				send (uartDebugClientSocket, &uartClientSignon[0], strlen(&uartClientSignon[0]), 0);
+			}
+			else if (sock == swoTraceServerSocket)
+			{
+				handleSocketAcceptEvent (pAcceptData, &swoTraceClientSocket, &g_swoTraceClientConnected, &g_newSwoTraceClientconncted, msgType);
 			}
 			else
 			{
@@ -852,9 +971,6 @@ static void AppSocketCallback(SOCKET sock, uint8_t msgType, void *pvMsg)
 						inputBuffer[uiInputIndex] = localBuffer[i];
 					}
 					uiBufferCount += pRecvData->bufSize;
-#ifdef INSTRUMENT
-					gpio_set (LED_PORT, LED_3);
-#endif
 					dprintf ("Received -> %d, queued -> %ld\r\n", pRecvData->bufSize, uiBufferCount);
 					//
 					// Start another receive operation so we always get data
@@ -870,25 +986,45 @@ static void AppSocketCallback(SOCKET sock, uint8_t msgType, void *pvMsg)
 			{
 				if (pRecvData->bufSize > 0)
 				{
-					//
-					// The only data we expect is the UART configuration, so pass of the data for parsing and use
-					//
-					if (platform_configure_uart ((char*)&localUartDebugBuffer[0]) == false)
+					if ( g_userConfiguredUart == false)
 					{
-						//
-						// Setup failed, tell user
-						//
-						send (uartDebugClientSocket, "Syntax error in setup string\r\n", strlen ("Syntax error in setup string\r\n"), 0);
+						if (platform_configure_uart ((char*)&localUartDebugBuffer[0]) == false)
+						{
+							//
+							// Setup failed, tell user
+							//
+							send (uartDebugClientSocket, "Syntax error in setup string\r\n", strlen ("Syntax error in setup string\r\n"), 0);
+						}
+						else
+						{
+							g_userConfiguredUart = true;
+						}
 					}
 					else
 					{
-						g_userConfiguredUart = true;
+						//
+						// Forward data to target MCU 
+						//
+						gpio_set(LED_PORT_UART, LED_UART);
+						for(int i = 0; i < pRecvData->bufSize; i++)
+							usart_send_blocking(USBUSART, localUartDebugBuffer[i]);
+						gpio_clear(LED_PORT_UART, LED_UART);
 					}
 					memset (&localUartDebugBuffer[0], 0x00, sizeof (localUartDebugBuffer));
 					//
 					// Setup to receive future data
 					// 
 					recv (uartDebugClientSocket, &localUartDebugBuffer[0], UART_DEBUG_INPUT_BUFFER_SIZE, 0);
+				}
+			}
+			else if (sock == swoTraceClientSocket)
+			{
+				if (pRecvData->bufSize > 0)
+				{
+					//
+					// Setup to receive future data
+					// 
+					recv (swoTraceClientSocket, &localSwoTraceBuffer[0], SWO_TRACE_INPUT_BUFFER_SIZE, 0);
 				}
 				else
 				{
@@ -928,6 +1064,15 @@ static void AppSocketCallback(SOCKET sock, uint8_t msgType, void *pvMsg)
 					DoUartDebugSend ();
 				}
 			}
+			else if (sock == swoTraceClientSocket)
+			{
+				uiSwoTraceSendQueueOut = (uiSwoTraceSendQueueOut + 1) % SEND_QUEUE_SIZE;
+				uiSwoTraceSendQueueLength -= 1;
+				if (uiSwoTraceSendQueueLength != 0)
+				{
+					DoSwoTraceSend ();
+				}
+			}
 			else
 			{
 				//
@@ -958,9 +1103,7 @@ static void AppSocketCallback(SOCKET sock, uint8_t msgType, void *pvMsg)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Query if this object is server running.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
+/// <summary> Is GDB server running.</summary>
 ///
 /// <returns> True if server running, false if not.</returns>
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -970,6 +1113,15 @@ bool isGDBServerRunning(void)
 	return g_gdbServerIsRunning ;
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+/// <summary> Is SWO Trace server running.</summary>
+///
+/// <returns> True if server running, false if not.</returns>
+////////////////////////////////////////////////////////////////////////////////////////////////////
+bool swoTraceServerActive(void)
+{
+	return swoTraceServerSocket != SOCK_ERR_INVALID ;
+}
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// <summary> Query if this object is DNS resolved.</summary>
 ///
@@ -1003,6 +1155,11 @@ bool isGDBClientConnected(void)
 bool isUARTClientConnected(void)
 {
 	return g_userConfiguredUart;
+}
+
+bool isSwoTraceClientConnected(void)
+{
+	return g_swoTraceClientConnected;
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// <summary> Application initialize.</summary>
@@ -1303,6 +1460,7 @@ void APP_Task(void)
 		{
 			GDB_TCPServerState = SM_HOME;
 			UART_DEBUG_TCPServerState = SM_HOME;
+			SWO_TRACE_TCPServerState = SM_IDLE ;	// Will start up when requested
 			//
 			// Wait for the server to come up
 			//
@@ -1345,6 +1503,11 @@ void APP_Task(void)
 				g_newUartDebugClientconncted = false;
 				recv (uartDebugClientSocket, &localUartDebugBuffer[0], UART_DEBUG_INPUT_BUFFER_SIZE, 0);
 			}
+			if (g_newSwoTraceClientconncted == true)
+			{
+				g_newSwoTraceClientconncted = false;
+				recv (swoTraceClientSocket, &localSwoTraceBuffer[0], SWO_TRACE_INPUT_BUFFER_SIZE, 0);
+			}
 			break;
 		}
 		
@@ -1353,6 +1516,10 @@ void APP_Task(void)
 			dprintf("APP_TASK[%d]: Unknown state.\r\n", appState) ;	
 		}
 	}
+	//
+	// Check for swo trace data
+	//
+	traceSendData() ;
 	//
 	// Run the mode led task?
 	//
@@ -1520,7 +1687,7 @@ unsigned char WiFi_GetNext_to( uint32_t timeout )
 	platform_timeout t;
 	unsigned char c = 0 ;
 	int	inputCount = 0;
-	platform_timeout_set( &t, 10 );
+	platform_timeout_set( &t, timeout );
 
 	do {
 		if ((inputCount = WiFi_HaveInput ()) != 0) {
@@ -1533,7 +1700,7 @@ unsigned char WiFi_GetNext_to( uint32_t timeout )
 		
 		platform_tasks ();
 		
-	} while (1) ;
+	} while (!platform_timeout_is_expired (&t)) ;
 
 	if (inputCount != 0) {
 		c = WiFi_GetNext ();
@@ -1565,6 +1732,15 @@ void DoUartDebugSend (void)
 	m2mStub_EintEnable ();
 }
 
+void DoSwoTraceSend (void)
+{
+	send (swoTraceClientSocket, &(swoTraceSendQueue[uiSwoTraceSendQueueOut].packet[0]), swoTraceSendQueue[uiSwoTraceSendQueueOut].len, 0);
+	// m2mStub_EintDisable ();
+	// uiSwoTraceSendQueueOut = (uiSwoTraceSendQueueOut + 1) % SEND_QUEUE_SIZE;
+	// uiSwoTraceSendQueueLength -= 1;
+	// m2mStub_EintEnable ();
+}
+
 void SendUartData(uint8_t *lpBuffer, uint8_t length)
 {
 	m2mStub_EintDisable ();
@@ -1574,6 +1750,31 @@ void SendUartData(uint8_t *lpBuffer, uint8_t length)
 	uiUartDebugSendQueueLength += 1 ;
 	m2mStub_EintEnable ();
 	DoUartDebugSend() ;
+}
+
+void SendSwoTraceData(uint8_t *lpBuffer, uint8_t length)
+{
+	bool	sendIt = false ;
+
+	m2mStub_EintDisable ();
+	memcpy(swoTraceSendQueue[uiSwoTraceSendQueueIn].packet, lpBuffer, length) ;
+	swoTraceSendQueue[uiSwoTraceSendQueueIn].len = length ;
+	uiSwoTraceSendQueueIn = (uiSwoTraceSendQueueIn + 1) % SEND_QUEUE_SIZE ;
+	uiSwoTraceSendQueueLength += 1 ;
+	if ( uiSwoTraceSendQueueLength == 1)	//First data?
+	{
+		sendIt = true ;
+	}
+	else
+	{
+		sendIt = false ;
+	}
+	
+	m2mStub_EintEnable ();
+	if ( sendIt)
+	{
+		DoSwoTraceSend();
+	}	
 }
 
 static unsigned char sendBuffer[1024] = { 0 };  ///< The send buffer[ 1024]

@@ -9,9 +9,14 @@ extern "C" {
 	void GDB_TCPServer(void);
 	bool isGDBClientConnected(void);
 
-	void UART_TCPServer (void);
+	void DATA_TCPServer (void);
 	bool isUARTClientConnected(void) ;
 	void SendUartData(uint8_t *lpBuffer, uint8_t length) ;
+
+	bool swoTraceServerActive(void) ;
+	void WiFi_setupSwoTraceServer(void) ;
+	bool isSwoTraceClientConnected(void) ;
+	void SendSwoTraceData(uint8_t *lpBuffer, uint8_t length);
 
 	void WiFi_gdb_putchar(unsigned char c, int flush);
 	bool WiFi_GotClient( void );
