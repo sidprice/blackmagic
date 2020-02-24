@@ -11,6 +11,7 @@
         "gdb_if.h": "c",
         "setjmp.h": "c",
         "common.h": "c",
-        "cdcacm.h": "c"
+        "cdcacm.h": "c",
+        "version.h": "c"
     }
 }
