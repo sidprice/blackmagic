@@ -13,5 +13,16 @@
         "common.h": "c",
         "cdcacm.h": "c",
         "version.h": "c"
-    }
+    },
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/CVS": true,
+        "**/.DS_Store": true,
+        "src/*.o": true,
+        "src/*.d": true,
+        "adiv5_jtagdp.d": true
+    },
+    "explorerExclude.backup": null
 }
