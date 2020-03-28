@@ -113,10 +113,8 @@ const struct command_s samd_cmd_list[] = {
 #define SAMD_DSU_ADDRESS		(SAMD_DSU_EXT_ACCESS + 0x4)
 #define SAMD_DSU_LENGTH			(SAMD_DSU_EXT_ACCESS + 0x8)
 #define SAMD_DSU_DID			(SAMD_DSU_EXT_ACCESS + 0x018)
-#define SAMD_DSU_PID(n)			(SAMD_DSU + 0x1FE0 + \
-					 (0x4 * (n % 4)) - (0x10 * (n / 4)))
-#define SAMD_DSU_CID(n)			(SAMD_DSU + 0x1FF0 + \
-					 (0x4 * (n % 4)))
+#define SAMD_DSU_PID			(SAMD_DSU + 0x1000)
+#define SAMD_DSU_CID			(SAMD_DSU + 0x1010)
 
 /* Control and Status Register (CTRLSTAT) */
 #define SAMD_CTRL_CHIP_ERASE		(1 << 4)
@@ -222,35 +220,6 @@ static const struct samd_part samd_l22_parts[] = {
 };
 
 /**
- * Reads the SAM D20 Peripheral ID
- */
-uint64_t samd_read_pid(target *t)
-{
-	uint64_t pid = 0;
-	uint8_t i, j;
-
-	/* Five PID registers to read LSB first */
-	for (i = 0, j = 0; i < 5; i++, j += 8)
-		pid |= (target_mem_read32(t, SAMD_DSU_PID(i)) & 0xFF) << j;
-
-	return pid;
-}
-/**
- * Reads the SAM D20 Component ID
- */
-uint32_t samd_read_cid(target *t)
-{
-	uint64_t cid = 0;
-	uint8_t i, j;
-
-	/* Four CID registers to read LSB first */
-	for (i = 0, j = 0; i < 4; i++, j += 8)
-		cid |= (target_mem_read32(t, SAMD_DSU_CID(i)) & 0xFF) << j;
-
-	return cid;
-}
-
-/**
  * Overloads the default cortexm reset function with a version that
  * removes the target from extended reset where required.
  */
@@ -329,7 +298,7 @@ samd20_revB_detach(target *t)
 static void
 samd20_revB_halt_resume(target *t, bool step)
 {
-	cortexm_halt_resume(t, step);
+	target_halt_resume(t, step);
 
 	/* ---- Additional ---- */
 	/* Exit extended reset */
@@ -474,8 +443,9 @@ static void samd_add_flash(target *t, uint32_t addr, size_t length)
 char variant_string[60];
 bool samd_probe(target *t)
 {
-	uint32_t cid = samd_read_cid(t);
-	uint32_t pid = samd_read_pid(t);
+	ADIv5_AP_t *ap = cortexm_ap(t);
+	uint32_t cid = adiv5_ap_read_pidr(ap, SAMD_DSU_CID);
+	uint32_t pid = adiv5_ap_read_pidr(ap, SAMD_DSU_PID);
 
 	/* Check the ARM Coresight Component and Perhiperal IDs */
 	if ((cid != SAMD_CID_VALUE) ||

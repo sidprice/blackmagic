@@ -20,9 +20,14 @@
 #include "general.h"
 
 #include <string.h>
-#if defined(STM32F1)
+#if defined(STM32F1HD)
+#	define DFU_IFACE_STRING  "@Internal Flash   /0x08000000/4*002Ka,000*002Kg"
+#   define DFU_IFACE_STRING_OFFSET 38
+#   define DFU_IFACE_PAGESIZE 2
+#elif defined(STM32F1)
 #	define DFU_IFACE_STRING  "@Internal Flash   /0x08000000/8*001Ka,000*001Kg"
 #   define DFU_IFACE_STRING_OFFSET 38
+#   define DFU_IFACE_PAGESIZE 1
 #elif defined(STM32F4)
 #	define DFU_IFACE_STRING  "/0x08000000/1*016Ka,3*016Kg,1*064Kg,7*128Kg"
 #endif
@@ -171,9 +176,14 @@ usbdfu_getstatus_complete(usbd_device *dev, struct usb_setup_data *req)
 
 		flash_unlock();
 		if(prog.blocknum == 0) {
-			int32_t addr = get_le32(prog.buf + 1);
+			uint32_t addr = get_le32(prog.buf + 1);
 			switch(prog.buf[0]) {
 			case CMD_ERASE:
+				if ((addr <  app_address) || (addr >= max_address)) {
+					usbdfu_state = 	STATE_DFU_ERROR;
+					flash_lock();
+					return;
+				}
 				dfu_check_and_do_sector_erase(addr);
 			}
 		} else {
@@ -305,6 +315,7 @@ static void set_dfu_iface_string(uint32_t size)
 {
 	uint32_t res;
 	char *p = if_string + DFU_IFACE_STRING_OFFSET;
+	size /= DFU_IFACE_PAGESIZE;
 	/* We do not want the whole printf library in the bootloader.
 	 * Fill the size digits by hand.
 	 */
@@ -352,9 +363,9 @@ static char *get_dev_unique_id(char *s)
 	/* Calculated the upper flash limit from the exported data
 	   in theparameter block*/
 	fuse_flash_size = *(uint32_t *) FLASH_SIZE_R & 0xfff;
-	set_dfu_iface_string(fuse_flash_size - 8);
-	if (fuse_flash_size == 0x40) /* Handle F103x8 as F103xC! */
+	if (fuse_flash_size == 0x40) /* Handle F103x8 as F103xB! */
 		fuse_flash_size = 0x80;
+	set_dfu_iface_string(fuse_flash_size - 8);
 	max_address = FLASH_BASE + (fuse_flash_size << 10);
 	/* If bootloader pages are write protected or device is read
 	 * protected, deny bootloader update.

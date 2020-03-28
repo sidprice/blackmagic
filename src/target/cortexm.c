@@ -53,11 +53,12 @@ const struct command_s cortexm_cmd_list[] = {
 static void cortexm_regs_read(target *t, void *data);
 static void cortexm_regs_write(target *t, const void *data);
 static uint32_t cortexm_pc_read(target *t);
-ssize_t cortexm_reg_read(target *t, int reg, void *data, size_t max);
-ssize_t cortexm_reg_write(target *t, int reg, const void *data, size_t max);
+static ssize_t cortexm_reg_read(target *t, int reg, void *data, size_t max);
+static ssize_t cortexm_reg_write(target *t, int reg, const void *data, size_t max);
 
 static void cortexm_reset(target *t);
 static enum target_halt_reason cortexm_halt_poll(target *t, target_addr *watch);
+static void cortexm_halt_resume(target *t, bool step);
 static void cortexm_halt_request(target *t);
 static int cortexm_fault_unwind(target *t);
 
@@ -549,7 +550,7 @@ int cortexm_mem_write_sized(
 	return target_check_error(t);
 }
 
-int dcrsr_regnum(target *t, unsigned reg)
+static int dcrsr_regnum(target *t, unsigned reg)
 {
 	if (reg < sizeof(regnum_cortex_m) / 4) {
 		return regnum_cortex_m[reg];
@@ -561,7 +562,7 @@ int dcrsr_regnum(target *t, unsigned reg)
 		return -1;
 	}
 }
-ssize_t cortexm_reg_read(target *t, int reg, void *data, size_t max)
+static ssize_t cortexm_reg_read(target *t, int reg, void *data, size_t max)
 {
 	if (max < 4)
 		return -1;
@@ -571,7 +572,7 @@ ssize_t cortexm_reg_read(target *t, int reg, void *data, size_t max)
 	return 4;
 }
 
-ssize_t cortexm_reg_write(target *t, int reg, const void *data, size_t max)
+static ssize_t cortexm_reg_write(target *t, int reg, const void *data, size_t max)
 {
 	if (max < 4)
 		return -1;
@@ -598,36 +599,43 @@ static void cortexm_pc_write(target *t, const uint32_t val)
  * using the core debug registers in the NVIC. */
 static void cortexm_reset(target *t)
 {
+	/* Read DHCSR here to clear S_RESET_ST bit before reset */
+	target_mem_read32(t, CORTEXM_DHCSR);
+	platform_timeout to;
 	if ((t->target_options & CORTEXM_TOPT_INHIBIT_SRST) == 0) {
 		platform_srst_set_val(true);
 		platform_srst_set_val(false);
+		/* Some NRF52840 users saw invalid SWD transaction with
+		 * native/firmware without this delay.*/
+		platform_delay(10);
 	}
-
-	/* Read DHCSR here to clear S_RESET_ST bit before reset */
-	target_mem_read32(t, CORTEXM_DHCSR);
-
-	/* Request system reset from NVIC: SRST doesn't work correctly */
-	/* This could be VECTRESET: 0x05FA0001 (reset only core)
-	 *          or SYSRESETREQ: 0x05FA0004 (system reset)
-	 */
-	target_mem_write32(t, CORTEXM_AIRCR,
-	                   CORTEXM_AIRCR_VECTKEY | CORTEXM_AIRCR_SYSRESETREQ);
-
+	uint32_t dhcsr = target_mem_read32(t, CORTEXM_DHCSR);
+	if ((dhcsr & CORTEXM_DHCSR_S_RESET_ST) == 0) {
+		/* No reset seen yet, maybe as SRST is not connected, or device has
+         * CORTEXM_TOPT_INHIBIT_SRST set.
+		 * Trigger reset by AIRCR.*/
+		target_mem_write32(t, CORTEXM_AIRCR,
+						   CORTEXM_AIRCR_VECTKEY | CORTEXM_AIRCR_SYSRESETREQ);
+	}
 	/* If target needs to do something extra (see Atmel SAM4L for example) */
 	if (t->extended_reset != NULL) {
 		t->extended_reset(t);
 	}
-
-	/* Poll for release from reset */
-	while (target_mem_read32(t, CORTEXM_DHCSR) & CORTEXM_DHCSR_S_RESET_ST);
-
+	/* Wait for CORTEXM_DHCSR_S_RESET_ST to read 0, meaning reset released.*/
+	platform_timeout_set(&to, 1000);
+	while ((target_mem_read32(t, CORTEXM_DHCSR) & CORTEXM_DHCSR_S_RESET_ST) &&
+		   !platform_timeout_is_expired(&to));
+#if defined(PLATFORM_HAS_DEBUG)
+	if (platform_timeout_is_expired(&to))
+		DEBUG("Reset seem to be stuck low!\n");
+#endif
+	/* 10 ms delay to ensure that things such as the STM32 HSI clock
+	 * have started up fully. */
+	platform_delay(10);
 	/* Reset DFSR flags */
 	target_mem_write32(t, CORTEXM_DFSR, CORTEXM_DFSR_RESETALL);
-
-	/* 1ms delay to ensure that things such as the stm32f1 HSI clock have started
-	 * up fully.
-	 */
-	platform_delay(1);
+	/* Make sure we ignore any initial DAP error */
+	target_check_error(t);
 }
 
 static void cortexm_halt_request(target *t)
@@ -706,7 +714,7 @@ static enum target_halt_reason cortexm_halt_poll(target *t, target_addr *watch)
 	return TARGET_HALT_BREAKPOINT;
 }
 
-void cortexm_halt_resume(target *t, bool step)
+static void cortexm_halt_resume(target *t, bool step)
 {
 	struct cortexm_priv *priv = t->priv;
 	uint32_t dhcsr = CORTEXM_DHCSR_DBGKEY | CORTEXM_DHCSR_C_DEBUGEN;
