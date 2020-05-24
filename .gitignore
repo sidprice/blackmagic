@@ -21,3 +21,5 @@ VisualGDB/
 WDBP-Release.vgdbsettings.sidprice.user
 .vs/
 .vscode/.cortex-debug.peripherals.state.json
+
+*.elf
