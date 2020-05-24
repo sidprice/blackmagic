@@ -605,6 +605,11 @@ static void AppWifiCallback(uint8_t msgType, void *pvMsg)
 
 		case M2M_WIFI_IP_ADDRESS_ASSIGNED_EVENT:
 		{
+			t_wifiEventData *p_wifiEventData = (t_wifiEventData *)pvMsg;
+			if (p_wifiEventData != NULL)
+			{
+				g_ipAddressAssigned = true;
+			}
 			g_ipAddressAssigned = true;
 			break;
 		}
