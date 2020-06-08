@@ -152,6 +152,7 @@ void DoSwoTraceSend (void);
 static bool pressActive = false; ///< True to press active
 bool wpsActive = false;			 ///< True to wps active
 bool httpActive = false;		 ///< True when HTTP provisioning is active
+bool waitingAccessPoint = false; ///< Set true when http provisioning is started, this allows ignoring of that connection event	
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// <summary> Exti 9 5 isr.</summary>
@@ -583,13 +584,27 @@ static void AppWifiCallback(uint8_t msgType, void *pvMsg)
 			tstrM2mWifiStateChanged *pstrWifiState = (tstrM2mWifiStateChanged *) pvMsg;
 			if (pstrWifiState->u8CurrState == M2M_WIFI_CONNECTED)
 			{
-				dprintf("APP_WIFI_CB[%d]: Connected to AP\r\n", msgType);
-				g_wifi_connected = true;
 				//
-				// Clear flags in case they were active
+				// If we are in http access mode there will be a connection event when the
+				// provisioning client connects, we need to ignore this event.
 				//
-				wpsActive = false;
-				httpActive = false;
+				// The connection event is the provisioning client if:
+				//		httpActive == true && waitingAccessPoint == true
+				//
+				// Otherwise it is a valid ctxLink-> AP connection
+				//
+				if (httpActive == true && waitingAccessPoint == true) {
+					waitingAccessPoint = false;		// Next event is the ctxLink to AP event
+				}
+				else {
+					dprintf("APP_WIFI_CB[%d]: Connected to AP\r\n", msgType);
+					g_wifi_connected = true;
+					//
+					// Clear flags in case they were active
+					//
+					wpsActive = false;
+					httpActive = false;
+				}
 			}
 			else if (pstrWifiState->u8CurrState == M2M_WIFI_DISCONNECTED)
 			{
@@ -1394,6 +1409,7 @@ void APP_Task(void)
 			apConfig.au8DHCPServerIP[3] = 1;
 			m2m_wifi_start_provision_mode (&apConfig, "ctxLink_Config.com", enableRedirect);
 			httpActive = true;
+			waitingAccessPoint = true;
 			appState = APP_STATE_WAIT_PROVISION_EVENT;
 			break;
 		}
