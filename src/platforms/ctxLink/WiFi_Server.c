@@ -372,6 +372,61 @@ static enum WiFi_TCPServerStates
 struct sockaddr_in gdb_addr = { 0 } ;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+/// <summary> Actions when Wi-Fi is deisconnected.</summary>
+///
+/// <remarks> Sid Price, 6/10/2020.
+///		Close any client connections and shut down active servers
+///	</remarks>
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void doWiFiDisconnect(void) {
+	//
+	// Clients
+	//
+	if (gdbClientSocket != SOCK_ERR_INVALID)
+	{
+		close(gdbClientSocket);
+		g_gdbClientConnected = false;
+		gdbClientSocket = SOCK_ERR_INVALID;
+	}
+	if (uartDebugClientSocket != SOCK_ERR_INVALID)
+	{
+		close(uartDebugClientSocket);
+		g_uartDebugClientConnected = false;
+		uartDebugClientSocket = SOCK_ERR_INVALID;
+	}
+	if (swoTraceClientSocket != SOCK_ERR_INVALID)
+	{
+		close(swoTraceClientSocket);
+		g_swoTraceClientConnected = false;
+		swoTraceClientSocket = SOCK_ERR_INVALID;
+	}
+	//
+	// Servers
+	//
+	if (gdbServerSocket != SOCK_ERR_INVALID)
+	{
+		GDB_TCPServerState = SM_IDLE;
+		g_gdbServerIsRunning = false;
+		close(gdbServerSocket);
+		gdbServerSocket = SOCK_ERR_INVALID;
+	}
+	if (uartDebugServerSocket != SOCK_ERR_INVALID)
+	{
+		UART_DEBUG_TCPServerState = SM_IDLE;
+		g_uartDebugServerIsRunning = false;
+		close(uartDebugServerSocket);
+		uartDebugServerSocket = SOCK_ERR_INVALID;
+	}
+	if (swoTraceServerSocket != SOCK_ERR_INVALID)
+	{
+		SWO_TRACE_TCPServerState = SM_IDLE;
+		g_swoTraceServerIsRunning = false;
+		close(swoTraceServerSocket);
+		swoTraceServerSocket = SOCK_ERR_INVALID;
+	}
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
 /// <summary> GDB TCP server.</summary>
 ///
 /// <remarks> Sid Price, 3/22/2018.</remarks>
@@ -417,7 +472,8 @@ void GDB_TCPServer(void)
 	case SM_CLOSING:
 		// Close the socket connection.
 		close(gdbServerSocket);
-		GDB_TCPServerState = SM_HOME;
+		gdbServerSocket = SOCK_ERR_INVALID;
+		GDB_TCPServerState = SM_IDLE;
 		break;
 	}
 }
@@ -479,7 +535,8 @@ void DATA_TCPServer (void)
 		{
 			// Close the socket connection.
 			close (uartDebugServerSocket);
-			UART_DEBUG_TCPServerState = SM_HOME;
+			uartDebugServerSocket = SOCK_ERR_INVALID;
+			UART_DEBUG_TCPServerState = SM_IDLE;
 			}	break;
 	}
 	//
@@ -528,7 +585,8 @@ void DATA_TCPServer (void)
 		{
 			// Close the socket connection.
 			close (swoTraceServerSocket);
-			SWO_TRACE_TCPServerState = SM_HOME;
+			swoTraceServerSocket = SOCK_ERR_INVALID;
+			SWO_TRACE_TCPServerState = SM_IDLE;
 			break;
 		}
 	}
@@ -1617,6 +1675,7 @@ void APP_Task(void)
 					*/
 					if ( isWifiConnected () == true )
 					{
+						doWiFiDisconnect();
 						m2m_wifi_disconnect ();
 						appState = APP_STATE_WAIT_WIFI_DISCONNECT_FOR_HTTP;
 					}
@@ -1635,6 +1694,7 @@ void APP_Task(void)
 					*/
 					if ( isWifiConnected () == true )
 					{
+						doWiFiDisconnect();
 						m2m_wifi_disconnect ();
 						appState = APP_STATE_WAIT_WIFI_DISCONNECT_FOR_WPS;
 					}
