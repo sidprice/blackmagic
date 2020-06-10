@@ -657,11 +657,6 @@ static void AppWifiCallback(uint8_t msgType, void *pvMsg)
 				else {
 					dprintf("APP_WIFI_CB[%d]: Connected to AP\r\n", msgType);
 					g_wifi_connected = true;
-					//
-					// Clear flags in case they were active
-					//
-					//wpsActive = false;
-					//httpActive = false;
 				}
 			}
 			else if (pstrWifiState->u8CurrState == M2M_WIFI_DISCONNECTED)
@@ -721,7 +716,6 @@ static void AppWifiCallback(uint8_t msgType, void *pvMsg)
 			{
 				m2m_wifi_stop_provision_mode ();
 			}
-			// httpActive = false;
 			break;
 		}
 		case M2M_WIFI_DEFAULT_CONNNECT_EVENT:
