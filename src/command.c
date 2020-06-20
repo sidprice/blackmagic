@@ -59,7 +59,8 @@ static bool cmd_target_power(target *t, int argc, const char **argv);
 #ifdef PLATFORM_HAS_TRACESWO
 static bool cmd_traceswo(target *t, int argc, const char **argv);
 #endif
-#if defined(PLATFORM_HAS_DEBUG) && !defined(PC_HOSTED)
+static bool cmd_heapinfo(target *t, int argc, const char **argv);
+#if defined(PLATFORM_HAS_DEBUG) && (PC_HOSTED == 0)
 static bool cmd_debug_bmp(target *t, int argc, const char **argv);
 #endif
 #ifdef PLATFORM_HAS_BATTERY
@@ -81,12 +82,13 @@ const struct command_s cmd_list[] = {
 #endif
 #ifdef PLATFORM_HAS_TRACESWO
 #if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
-	{"traceswo", (cmd_handler)cmd_traceswo, "Start trace capture, NRZ mode: (baudrate)" },
+	{"traceswo", (cmd_handler)cmd_traceswo, "Start trace capture, NRZ mode: (baudrate) (decode channel ...)" },
 #else
-	{"traceswo", (cmd_handler)cmd_traceswo, "Start trace capture, Manchester mode" },
+	{"traceswo", (cmd_handler)cmd_traceswo, "Start trace capture, Manchester mode: (decode channel ...)" },
 #endif
 #endif
-#if defined(PLATFORM_HAS_DEBUG) && !defined(PC_HOSTED)
+	{"heapinfo", (cmd_handler)cmd_heapinfo, "Set semihosting heapinfo" },
+#if defined(PLATFORM_HAS_DEBUG) && (PC_HOSTED == 0)
 	{"debug_bmp", (cmd_handler)cmd_debug_bmp, "Output BMP \"debug\" strings to the second vcom: (enable|disable)"},
 #endif
 #ifdef PLATFORM_HAS_BATTERY
@@ -96,7 +98,7 @@ const struct command_s cmd_list[] = {
 };
 
 bool connect_assert_srst;
-#if defined(PLATFORM_HAS_DEBUG) && !defined(PC_HOSTED)
+#if defined(PLATFORM_HAS_DEBUG) && (PC_HOSTED == 0)
 bool debug_bmp;
 #endif
 long cortexm_wait_timeout = 2000; /* Timeout to wait for Cortex to react on halt command. */
@@ -139,8 +141,8 @@ bool cmd_version(target *t, int argc, char **argv)
 	(void)t;
 	(void)argc;
 	(void)argv;
-#if defined PC_HOSTED
-	gdb_outf("Black Magic Probe, PC-Hosted for " PLATFORM_IDENT
+#if PC_HOSTED == 1
+	gdb_outf("Black Magic Probe, PC-Hosted for " PLATFORM_IDENT()
 			 ", Version " FIRMWARE_VERSION "\n");
 #elif ctxLink
 	gdb_outf ("Wireless Debug Probe (Firmware " FIRMWARE_VERSION ") (Hardware Version %d)\n", platform_hwversion ());
@@ -178,7 +180,8 @@ static bool cmd_jtag_scan(target *t, int argc, char **argv)
 	(void)t;
 	uint8_t irlens[argc];
 
-	gdb_outf("Target voltage: %s\n", platform_target_voltage());
+	if (platform_target_voltage())
+		gdb_outf("Target voltage: %s\n", platform_target_voltage());
 
 	if (argc > 1) {
 		/* Accept a list of IR lengths on command line */
@@ -193,7 +196,11 @@ static bool cmd_jtag_scan(target *t, int argc, char **argv)
 	int devs = -1;
 	volatile struct exception e;
 	TRY_CATCH (e, EXCEPTION_ALL) {
+#if PC_HOSTED == 1
+		devs = platform_jtag_scan(argc > 1 ? irlens : NULL);
+#else
 		devs = jtag_scan(argc > 1 ? irlens : NULL);
+#endif
 	}
 	switch (e.type) {
 	case EXCEPTION_TIMEOUT:
@@ -219,7 +226,8 @@ bool cmd_swdp_scan(target *t, int argc, char **argv)
 	(void)t;
 	(void)argc;
 	(void)argv;
-	gdb_outf("Target voltage: %s\n", platform_target_voltage());
+	if (platform_target_voltage())
+		gdb_outf("Target voltage: %s\n", platform_target_voltage());
 
 	if(connect_assert_srst)
 		platform_srst_set_val(true); /* will be deasserted after attach */
@@ -227,8 +235,12 @@ bool cmd_swdp_scan(target *t, int argc, char **argv)
 	int devs = -1;
 	volatile struct exception e;
 	TRY_CATCH (e, EXCEPTION_ALL) {
+#if PC_HOSTED == 1
+		devs = platform_adiv5_swdp_scan();
+#else
 		devs = adiv5_swdp_scan();
-	}
+#endif
+		}
 	switch (e.type) {
 	case EXCEPTION_TIMEOUT:
 		gdb_outf("Timeout during scan. Is target stuck in WFI?\n");
@@ -372,32 +384,58 @@ static bool cmd_target_power(target *t, int argc, const char **argv)
 #ifdef PLATFORM_HAS_TRACESWO
 static bool cmd_traceswo(target *t, int argc, const char **argv)
 {
-#if defined(STM32L0) || defined(STM32F3) || defined(STM32F4)
-	extern char serial_no[13];
-#else
-	extern char serial_no[9];
-#endif
+	extern char *serial_no;
 	(void)t;
-#if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
-	if (argc > 1) {
-		uint32_t baudrate = atoi(argv[1]);
-		traceswo_init(baudrate);
-	} else {
-		gdb_outf("Missing baudrate parameter in command\n");
-	}
-#else
-	(void)argv;
-	traceswo_init();
-	if (argc > 1) {
-		gdb_outf("Superfluous parameter(s) ignored\n");
+#if TRACESWO_PROTOCOL == 2
+	uint32_t baudrate = SWO_DEFAULT_BAUD;
+#endif
+	uint32_t swo_channelmask = 0; /* swo decoding off */
+	uint8_t decode_arg = 1;
+#if TRACESWO_PROTOCOL == 2
+	/* argument: optional baud rate for async mode */
+	if ((argc > 1) && (*argv[1] >= '0') && (*argv[1] <= '9')) {
+		baudrate = atoi(argv[1]);
+		if (baudrate == 0) baudrate = SWO_DEFAULT_BAUD;
+		decode_arg = 2;
 	}
 #endif
-	gdb_outf("%s:%02X:%02X\n", serial_no, 5, USB_TRACESWO_ENDPOINT);
+	/* argument: 'decode' literal */
+	if((argc > decode_arg) &&  !strncmp(argv[decode_arg], "decode", strlen(argv[decode_arg]))) {
+		swo_channelmask = 0xFFFFFFFF; /* decoding all channels */
+		/* arguments: channels to decode */
+		if (argc > decode_arg + 1) {
+			swo_channelmask = 0x0;
+			for (int i = decode_arg+1; i < argc; i++) { /* create bitmask of channels to decode */
+				int channel = atoi(argv[i]);
+				if ((channel >= 0) && (channel <= 31))
+					swo_channelmask |= (uint32_t)0x1 << channel;
+			}
+		}
+	}
+#if defined(PLATFORM_HAS_DEBUG) && (PC_HOSTED == 0) && defined(ENABLE_DEBUG)
+	if (debug_bmp) {
+#if TRACESWO_PROTOCOL == 2
+		gdb_outf("baudrate: %lu ", baudrate);
+#endif
+		gdb_outf("channel mask: ");
+		for (int8_t i=31;i>=0;i--) {
+			uint8_t bit = (swo_channelmask >> i) & 0x1;
+			gdb_outf("%u", bit);
+		}
+		gdb_outf("\n");
+	}
+#endif
+#if TRACESWO_PROTOCOL == 2
+	traceswo_init(baudrate, swo_channelmask);
+#else
+	traceswo_init(swo_channelmask);
+#endif
+	gdb_outf("%s:%02X:%02X\n", serial_no, 5, 0x85);
 	return true;
 }
 #endif
 
-#if defined(PLATFORM_HAS_DEBUG) && !defined(PC_HOSTED)
+#if defined(PLATFORM_HAS_DEBUG) && (PC_HOSTED == 0)
 static bool cmd_debug_bmp(target *t, int argc, const char **argv)
 {
 	(void)t;
@@ -419,3 +457,17 @@ static bool cmd_debug_bmp(target *t, int argc, const char **argv)
 	return true;
 }
 #endif
+static bool cmd_heapinfo(target *t, int argc, const char **argv)
+{
+	if (t == NULL) gdb_out("not attached\n");
+	else if (argc == 5) {
+		target_addr heap_base = strtoul(argv[1], NULL, 16);
+		target_addr heap_limit = strtoul(argv[2], NULL, 16);
+		target_addr stack_base = strtoul(argv[3], NULL, 16);
+		target_addr stack_limit = strtoul(argv[4], NULL, 16);
+		gdb_outf("heapinfo heap_base: %p heap_limit: %p stack_base: %p stack_limit: %p\n",
+			heap_base, heap_limit, stack_base, stack_limit);
+		target_set_heapinfo(t, heap_base, heap_limit, stack_base, stack_limit);
+	} else gdb_outf("heapinfo heap_base heap_limit stack_base stack_limit\n");
+	return true;
+}
