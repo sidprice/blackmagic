@@ -182,8 +182,9 @@ void SWO_UART_ISR(void)
 	
 }
 
-void traceswo_init(uint32_t baudrate)
+void traceswo_init(uint32_t baudrate, uint32_t swo_chan_bitmask)
 {
+	(void)swo_chan_bitmask;
 	rcc_periph_clock_enable(SWO_UART_CLK) ;
 	gpio_mode_setup(SWO_UART_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, SWO_UART_RX_PIN);
 	gpio_set_af(SWO_UART_PORT, GPIO_AF8, SWO_UART_RX_PIN); 
