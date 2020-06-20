@@ -16,7 +16,23 @@ tags
 *.b#*
 blackmagic_upgrade
 *.exe
+<<<<<<< HEAD
 *.elf
 .vscode
 
 *.elf
+||||||| Add v1.2.9a2d3a firmware release
+*.ipch
+VisualGDB/
+WDBP-Release.vgdbsettings.sidprice.user
+.vs/
+.vscode/.cortex-debug.peripherals.state.json
+=======
+*.ipch
+VisualGDB/
+WDBP-Release.vgdbsettings.sidprice.user
+.vs/
+.vscode/.cortex-debug.peripherals.state.json
+
+*.elf
+>>>>>>> ctxLink_develop
