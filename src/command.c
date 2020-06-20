@@ -145,7 +145,7 @@ bool cmd_version(target *t, int argc, char **argv)
 	gdb_outf("Black Magic Probe, PC-Hosted for " PLATFORM_IDENT()
 			 ", Version " FIRMWARE_VERSION "\n");
 #elif ctxLink
-	gdb_outf ("Wireless Debug Probe (Firmware " FIRMWARE_VERSION ") (Hardware Version %d)\n", platform_hwversion ());
+	gdb_outf ("ctxLink Probe (Firmware " FIRMWARE_VERSION ") (Hardware Version %d)\n", platform_hwversion ());
 	gdb_out ("Copyright (C) 2019  Sid Price Software Design and\n");
 #else
 	gdb_outf("Black Magic Probe (Firmware " FIRMWARE_VERSION ") (Hardware Version %d)\n", platform_hwversion());
