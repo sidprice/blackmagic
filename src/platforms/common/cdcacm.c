@@ -58,7 +58,7 @@ static const struct usb_device_descriptor dev = {
 	.bDeviceClass = 0xEF,		/* Miscellaneous Device */
 	.bDeviceSubClass = 2,		/* Common Class */
 	.bDeviceProtocol = 1,		/* Interface Association */
-	.bMaxPacketSize0 = 64,
+	.bMaxPacketSize0 = 8,
 	.idVendor = 0x1D50,
 	.idProduct = 0x6018,
 	.bcdDevice = 0x0100,
@@ -188,7 +188,7 @@ static const struct usb_endpoint_descriptor uart_data_endp[] = {{
 	.bDescriptorType = USB_DT_ENDPOINT,
 	.bEndpointAddress = CDCACM_UART_ENDPOINT,
 	.bmAttributes = USB_ENDPOINT_ATTR_BULK,
-	.wMaxPacketSize = CDCACM_PACKET_SIZE,
+	.wMaxPacketSize = CDCACM_PACKET_SIZE / 2,
 	.bInterval = 1,
 }, {
 	.bLength = USB_DT_ENDPOINT_SIZE,

@@ -1,7 +1,11 @@
 /*
  * This file is part of the Black Magic Debug project.
  *
- * Copyright (C) 2019 2019 Uwe Bonnes
+ * Copyright (C) 2020 Uwe Bonnes (bon@elektron.ikp.physik.tu-darmstadt.de)
+ * Base on code:
+ * Copyright (C) 2011  Black Sphere Technologies Ltd.
+ * Written by Gareth McMullin <gareth@blacksphere.co.nz>
+ * and others.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -10,65 +14,19 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.	 If not, see <http://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "general.h"
-#include "gdb_if.h"
-#include "version.h"
-#include "platform.h"
 
-#include <assert.h>
+/* This file deduplicates codes used in several pc-hosted platforms
+ */
+
+#include <stdint.h>
 #include <unistd.h>
-#include <signal.h>
 #include <sys/time.h>
-
-#include "adiv5.h"
-#include "stlinkv2.h"
-
-int platform_hwversion(void)
-{
-	return stlink_hwversion();
-}
-
-const char *platform_target_voltage(void)
-{
-	return stlink_target_voltage();
-}
-
-void platform_init(int argc, char **argv)
-{
-	stlink_init(argc, argv);
-}
-
-static bool srst_status = false;
-void platform_srst_set_val(bool assert)
-{
-	stlink_srst_set_val(assert);
-	srst_status = assert;
-}
-
-bool platform_srst_get_val(void) { return srst_status; }
-
-void platform_buffer_flush(void)
-{
-}
-
-int platform_buffer_write(const uint8_t *data, int size)
-{
-	(void) data;
-	(void) size;
-	return size;
-}
-
-int platform_buffer_read(uint8_t *data, int size)
-{
-	(void) data;
-	return size;
-}
 
 #if defined(_WIN32) && !defined(__MINGW32__)
 #warning "This vasprintf() is dubious!"

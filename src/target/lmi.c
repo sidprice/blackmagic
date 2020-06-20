@@ -61,7 +61,7 @@ static void lmi_add_flash(target *t, size_t length)
 {
 	struct target_flash *f = calloc(1, sizeof(*f));
 	if (!f) {			/* calloc failed: heap exhaustion */
-		DEBUG("calloc: failed in %s\n", __func__);
+		DEBUG_WARN("calloc: failed in %s\n", __func__);
 		return;
 	}
 
@@ -98,6 +98,13 @@ bool lmi_probe(target *t)
 		t->driver = lmi_driver_str;
 		target_add_ram(t, 0x20000000, 0x6000);
 		lmi_add_flash(t, 0x10000);
+		t->target_options |= CORTEXM_TOPT_INHIBIT_SRST;
+		return true;
+
+	case 0x101F:    /* TM4C1294NCPDT */
+		t->driver = lmi_driver_str;
+		target_add_ram(t, 0x20000000, 0x40000);
+		lmi_add_flash(t, 0x100000);
 		t->target_options |= CORTEXM_TOPT_INHIBIT_SRST;
 		return true;
 	}

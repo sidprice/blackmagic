@@ -16,13 +16,14 @@ LDFLAGS = -lopencm3_stm32f4 \
 VPATH += platforms/stm32
 
 SRC += 	cdcacm.c	\
+	traceswodecode.c	\
 	traceswo.c	\
 	usbuart.c	\
 	serialno.c	\
 	timing.c	\
 	timing_stm32.c	\
 
-all: blackmagic.bin blackmagic.hex blackmagic.dfu
+all: blackmagic.bin blackmagic.hex
 
 blackmagic.dfu: blackmagic.hex
 	@echo Creating $@

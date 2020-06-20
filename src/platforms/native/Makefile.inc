@@ -21,6 +21,7 @@ endif
 VPATH += platforms/stm32
 
 SRC += 	cdcacm.c	\
+	traceswodecode.c	\
 	traceswo.c	\
 	usbuart.c	\
 	serialno.c	\
@@ -29,7 +30,7 @@ SRC += 	cdcacm.c	\
 
 all:	blackmagic.bin blackmagic_dfu.bin blackmagic_dfu.hex
 
-blackmagic_dfu: usbdfu.o dfucore.o dfu_f1.o
+blackmagic_dfu.elf: usbdfu.o dfucore.o dfu_f1.o
 	@echo "  LD      $@"
 	$(Q)$(CC) $^ -o $@ $(LDFLAGS_BOOT)
 

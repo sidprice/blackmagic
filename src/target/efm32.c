@@ -543,7 +543,7 @@ static void efm32_add_flash(target *t, target_addr addr, size_t length,
 {
 	struct target_flash *f = calloc(1, sizeof(*f));
 	if (!f) {			/* calloc failed: heap exhaustion */
-		DEBUG("calloc: failed in %s\n", __func__);
+		DEBUG_WARN("calloc: failed in %s\n", __func__);
 		return;
 	}
 
@@ -584,7 +584,7 @@ static efm32_device_t const * efm32_get_device(size_t index)
 /**
  * Probe
  */
-char variant_string[60];
+static char efm32_variant_string[60];
 bool efm32_probe(target *t)
 {
 	uint8_t di_version = 1;
@@ -636,13 +636,13 @@ bool efm32_probe(target *t)
 	uint32_t ram_size   = ram_kib   * 0x400;
 	uint32_t flash_page_size = device->flash_page_size;
 
-	snprintf(variant_string, sizeof(variant_string), "%c\b%c\b%s %d F%d %s",
+	snprintf(efm32_variant_string, sizeof(efm32_variant_string), "%c\b%c\b%s %d F%d %s",
 			di_version + 48, (uint8_t)device_index + 32,
 			device->name, part_number, flash_kib, device->description);
 
 	/* Setup Target */
 	t->target_options |= CORTEXM_TOPT_INHIBIT_SRST;
-	t->driver = variant_string;
+	t->driver = efm32_variant_string;
 	tc_printf(t, "flash size %d page size %d\n", flash_size, flash_page_size);
 	target_add_ram (t, SRAM_BASE, ram_size);
 	efm32_add_flash(t, 0x00000000, flash_size, flash_page_size);
@@ -720,11 +720,11 @@ static int efm32_flash_write(struct target_flash *f,
 	int ret = cortexm_run_stub(t, SRAM_BASE, dest, STUB_BUFFER_BASE, len,
 							   device->msc_addr);
 
-#ifdef PLATFORM_HAS_DEBUG
+#ifdef ENABLE_DEBUG
 	/* Check the MSC_IF */
 	uint32_t msc = device->msc_addr;
 	uint32_t msc_if = target_mem_read32(t, EFM32_MSC_IF(msc));
-	DEBUG("EFM32: Flash write done MSC_IF=%08"PRIx32"\n", msc_if);
+	DEBUG_INFO("EFM32: Flash write done MSC_IF=%08"PRIx32"\n", msc_if);
 #endif
 	return ret;
 }
@@ -985,7 +985,7 @@ void efm32_aap_probe(ADIv5_AP_t *ap)
 {
 	if ((ap->idr & EFM32_APP_IDR_MASK) == EFM32_AAP_IDR) {
 		/* It's an EFM32 AAP! */
-		DEBUG("EFM32: Found EFM32 AAP\n");
+		DEBUG_INFO("EFM32: Found EFM32 AAP\n");
 	} else {
 		return;
 	}
@@ -1002,7 +1002,7 @@ void efm32_aap_probe(ADIv5_AP_t *ap)
 	//efm32_aap_cmd_device_erase(t);
 
 	/* Read status */
-	DEBUG("EFM32: AAP STATUS=%08"PRIx32"\n", adiv5_ap_read(ap, AAP_STATUS));
+	DEBUG_INFO("EFM32: AAP STATUS=%08"PRIx32"\n", adiv5_ap_read(ap, AAP_STATUS));
 
 	sprintf(aap_driver_string,
 			"EFM32 Authentication Access Port rev.%d",
@@ -1032,15 +1032,15 @@ static bool efm32_aap_cmd_device_erase(target *t, int argc, const char **argv)
 
 	/* Read status */
 	status = adiv5_ap_read(ap, AAP_STATUS);
-	DEBUG("EFM32: AAP STATUS=%08"PRIx32"\n", status);
+	DEBUG_INFO("EFM32: AAP STATUS=%08"PRIx32"\n", status);
 
 	if (status & AAP_STATUS_ERASEBUSY) {
-		DEBUG("EFM32: AAP Erase in progress\n");
-		DEBUG("EFM32: -> ABORT\n");
+		DEBUG_WARN("EFM32: AAP Erase in progress\n");
+		DEBUG_WARN("EFM32: -> ABORT\n");
 		return false;
 	}
 
-	DEBUG("EFM32: Issuing DEVICEERASE...\n");
+	DEBUG_INFO("EFM32: Issuing DEVICEERASE...\n");
 	adiv5_ap_write(ap, AAP_CMDKEY, CMDKEY);
 	adiv5_ap_write(ap, AAP_CMD, 1);
 
@@ -1051,7 +1051,7 @@ static bool efm32_aap_cmd_device_erase(target *t, int argc, const char **argv)
 
 	/* Read status */
 	status = adiv5_ap_read(ap, AAP_STATUS);
-	DEBUG("EFM32: AAP STATUS=%08"PRIx32"\n", status);
+	DEBUG_INFO("EFM32: AAP STATUS=%08"PRIx32"\n", status);
 
 	return true;
 }

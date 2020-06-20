@@ -118,15 +118,26 @@ lpc11xx_probe(target *t)
 		target_add_ram(t, 0x10000000, 0x1000);
 		lpc11xx_add_flash(t, 0x00000000, 0x10000, 0x1000);
 		return true;
+    case 0x1000002b: // FX LPC11U6 32 kB SRAM/256 kB flash (max)
+		t->driver = "LPC11U6";
+		target_add_ram(t, 0x10000000, 0x8000);
+		lpc11xx_add_flash(t, 0x00000000, 0x40000, 0x1000);
+		return true;
 	case 0x3000002B:
 	case 0x3D00002B:
 		t->driver = "LPC1343";
 		target_add_ram(t, 0x10000000, 0x2000);
 		lpc11xx_add_flash(t, 0x00000000, 0x8000, 0x1000);
 		return true;
+	case 0x00008A04:  /* LPC8N04 (see UM11074 Rev.1.3 section 4.5.19) */
+		t->driver = "LPC8N04";
+		target_add_ram(t, 0x10000000, 0x2000);
+		lpc11xx_add_flash(t, 0x00000000, 0x8000, 0x400);
+		target_add_commands(t, lpc11xx_cmd_list, "LPC8N04");
+		return true;
 	}
 	if (idcode) {
-		DEBUG("LPC11xx: Unknown IDCODE 0x%08" PRIx32 "\n", idcode);
+		DEBUG_INFO("LPC11xx: Unknown IDCODE 0x%08" PRIx32 "\n", idcode);
 	}
 	idcode = target_mem_read32(t, LPC8XX_DEVICE_ID);
 	switch (idcode) {
@@ -185,7 +196,7 @@ lpc11xx_probe(target *t)
 		return true;
 	}
 	if (idcode) {
-		DEBUG("LPC8xx: Unknown IDCODE 0x%08" PRIx32 "\n", idcode);
+		DEBUG_INFO("LPC8xx: Unknown IDCODE 0x%08" PRIx32 "\n", idcode);
 	}
 
 	return false;
