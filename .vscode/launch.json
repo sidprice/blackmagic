@@ -32,7 +32,7 @@
             "svdFile": "${workspaceFolder}/SVD/STM32F411xx.svd",
             "cwd": "${workspaceFolder}/src",
             "servertype": "jlink",
-            "executable": "blackmagic",
+            "executable": "blackmagic.elf",
             "showDevDebugOutput": true,
             "interface": "swd",
             "device": "STM32F401RE",
