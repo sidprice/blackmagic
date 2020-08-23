@@ -64,7 +64,7 @@ static bool cmd_heapinfo(target *t, int argc, const char **argv);
 static bool cmd_debug_bmp(target *t, int argc, const char **argv);
 #endif
 #ifdef PLATFORM_HAS_BATTERY
-static bool cmd_battery (void);
+static bool cmd_battery (target *t, int argc, const char **argv);
 #endif
 
 const struct command_s cmd_list[] = {
@@ -263,9 +263,11 @@ bool cmd_swdp_scan(target *t, int argc, char **argv)
 }
 
 #ifdef ctxLink
-bool cmd_battery (void)
+bool cmd_battery (target *t, int argc, const char **argv)
 {
-	gdb_outf("%s\n", platform_battery_voltage());
+	(void)t;
+	(void)argc;
+	(void)argv;	gdb_outf("%s\n", platform_battery_voltage());
 	return true;
 }
 #endif
