@@ -267,7 +267,8 @@ bool cmd_battery (target *t, int argc, const char **argv)
 {
 	(void)t;
 	(void)argc;
-	(void)argv;	gdb_outf("%s\n", platform_battery_voltage());
+	(void)argv;
+	gdb_outf("%s\n", platform_battery_voltage());
 	return true;
 }
 #endif
