@@ -311,6 +311,7 @@ static int stlink_usb_error_check(uint8_t *data, bool verbose)
 		case STLINK_SWD_AP_STICKY_ERROR:
 			if (verbose)
 				DEBUG_WARN("STLINK_SWD_AP_STICKY_ERROR\n");
+			Stlink.ap_error = true;
 			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_AP_STICKYORUN_ERROR:
 			if (verbose)
@@ -686,11 +687,10 @@ static int stlink_enter_debug_jtag(bmp_info_t *info)
 
 static uint32_t stlink_read_coreid(void)
 {
-	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND,
-					  STLINK_DEBUG_READCOREID};
-	uint8_t data[4];
-	send_recv(info.usb_link, cmd, 16, data, 4);
-	uint32_t id =  data[0] | data[1] << 8 | data[2] << 16 | data[3] << 24;
+	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND, STLINK_DEBUG_APIV2_READ_IDCODES};
+	uint8_t data[12];
+	send_recv(info.usb_link, cmd, 16, data, 12);
+	uint32_t id =  data[4] | data[5] << 8 | data[6] << 16 | data[7] << 24;
 	DEBUG_INFO("Read Core ID: 0x%08" PRIx32 "\n", id);
 	return id;
 }
@@ -897,7 +897,8 @@ static void stlink_readmem(ADIv5_AP_t *ap, void *dest, uint32_t src, size_t len)
 		 * Approach taken:
 		 * Fill the memory with some fixed pattern so hopefully
 		 * the caller notices the error*/
-		DEBUG_WARN("stlink_readmem failed\n");
+		DEBUG_WARN("stlink_readmem from  %" PRIx32 " to %" PRIx32 ", len %"
+				   PRIx32 "failed\n", src, dest, (uint32_t) len);
 		memset(dest, 0xff, len);
 	}
 	DEBUG_PROBE("stlink_readmem from %" PRIx32 " to %" PRIx32 ", len %" PRIx32
@@ -1027,10 +1028,6 @@ static uint32_t stlink_ap_read(ADIv5_AP_t *ap, uint16_t addr)
 	return ret;
 }
 
-struct jtag_dev_s jtag_devs[JTAG_MAX_DEVS+1];
-int jtag_dev_count;
-jtag_proc_t jtag_proc;
-
 int jtag_scan_stlinkv2(bmp_info_t *info, const uint8_t *irlens)
 {
 	uint32_t idcodes[JTAG_MAX_DEVS+1];
@@ -1094,7 +1091,7 @@ int stlink_enter_debug_swd(bmp_info_t *info, ADIv5_DP_t *dp)
 					  STLINK_DEBUG_ENTER_SWD_NO_RESET};
 	uint8_t data[2];
 	DEBUG_INFO("Enter SWD\n");
-	send_recv(info->usb_link, cmd, 16, data, 2);
+	stlink_send_recv_retry(cmd, 16, data, 2);
 	if (stlink_usb_error_check(data, true))
 		return -1;
 	dp->idcode = stlink_read_coreid();

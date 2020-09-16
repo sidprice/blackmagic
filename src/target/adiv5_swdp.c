@@ -45,11 +45,16 @@ int adiv5_swdp_scan(void)
 	}
 
 #if PC_HOSTED == 1
-	if (platform_swdptap_init())
+	if (platform_swdptap_init()) {
+		free(dp);
+		exit(-1);
+	}
 #else
-	if (swdptap_init())
-#endif
+	if (swdptap_init()) {
+		free(dp);
 		return -1;
+	}
+#endif
 
 	/* Switch from JTAG to SWD mode */
 	swd_proc.swdptap_seq_out(0xFFFFFFFF, 16);
@@ -78,7 +83,8 @@ int adiv5_swdp_scan(void)
 
 	firmware_swdp_error(dp);
 	adiv5_dp_init(dp);
-
+	if (!target_list)
+		free(dp);
 	return target_list?1:0;
 }
 

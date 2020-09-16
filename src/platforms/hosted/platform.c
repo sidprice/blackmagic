@@ -37,9 +37,6 @@
 #include "jlink.h"
 #include "cmsis_dap.h"
 
-#define VENDOR_ID_BMP            0x1d50
-#define PRODUCT_ID_BMP           0x6018
-
 #define VENDOR_ID_STLINK         0x0483
 #define PRODUCT_ID_STLINK_MASK   0xffe0
 #define PRODUCT_ID_STLINK_GROUP  0x3740
@@ -101,6 +98,8 @@ static int find_debuggers(	BMP_CL_OPTIONS_t *cl_opts,bmp_info_t *info)
 	char product[128];
 	bmp_type_t type = BMP_TYPE_NONE;
 	bool access_problems = false;
+	char *active_cable = NULL;
+	bool ftdi_unknown = false;
   rescan:
 	found_debuggers = 0;
 	for (int i = 0;  devs[i]; i++) {
@@ -165,6 +164,8 @@ static int find_debuggers(	BMP_CL_OPTIONS_t *cl_opts,bmp_info_t *info)
 		if ((desc.idVendor == VENDOR_ID_BMP) &&
 			(desc.idProduct == PRODUCT_ID_BMP)) {
 			type = BMP_TYPE_BMP;
+		} else if ((strstr(manufacturer, "CMSIS")) || (strstr(product, "CMSIS"))) {
+			type = BMP_TYPE_CMSIS_DAP;
 		} else if (desc.idVendor ==  VENDOR_ID_STLINK) {
 			if ((desc.idProduct == PRODUCT_ID_STLINKV2) ||
 				(desc.idProduct == PRODUCT_ID_STLINKV21) ||
@@ -177,16 +178,45 @@ static int find_debuggers(	BMP_CL_OPTIONS_t *cl_opts,bmp_info_t *info)
 					DEBUG_WARN( "INFO: STLINKV1 not supported\n");
 				continue;
 			}
-		} else if ((strstr(manufacturer, "CMSIS")) || (strstr(product, "CMSIS"))) {
-			type = BMP_TYPE_CMSIS_DAP;
 		} else if (desc.idVendor ==  VENDOR_ID_SEGGER) {
 			type = BMP_TYPE_JLINK;
-		} else{
-			continue;
+		} else {
+			cable_desc_t *cable = &cable_desc[0];
+			for (; cable->name; cable++) {
+				bool found = false;
+				if ((cable->vendor != desc.idVendor) || (cable->product != desc.idProduct))
+					continue; /* VID/PID do not match*/
+				if (cl_opts->opt_cable) {
+					if (strcmp(cable->name, cl_opts->opt_cable))
+						continue; /* cable names do not match*/
+					else
+						found = true;
+				}
+				if (cable->description) {
+					if (strcmp(cable->description, product))
+						continue; /* discriptions do not match*/
+					else
+						found = true;
+				} else { /* VID/PID fits, but no cl_opts->opt_cable and no description*/
+					if ((cable->vendor == 0x0403) && /* FTDI*/
+						((cable->product == 0x6010) || /* FT2232C/D/H*/
+						 (cable->product == 0x6011) || /* FT4232H Quad HS USB-UART/FIFO IC */
+						 (cable->product == 0x6014))) {  /* FT232H Single HS USB-UART/FIFO IC */
+						ftdi_unknown = true;
+						continue; /* Cable name is needed */
+					}
+				}
+				if (found) {
+					active_cable = cable->name;
+					type = BMP_TYPE_LIBFTDI;
+					break;
+				}
+			}
+			if (!cable->name)
+				continue;
 		}
-		found_debuggers ++;
 		if (report) {
-			DEBUG_WARN("%2d: %s, %s, %s\n", found_debuggers,
+			DEBUG_WARN("%2d: %s, %s, %s\n", found_debuggers + 1,
 				   serial,
 				   manufacturer,product);
 		}
@@ -197,11 +227,19 @@ static int find_debuggers(	BMP_CL_OPTIONS_t *cl_opts,bmp_info_t *info)
 		strncpy(info->product, product, sizeof(info->product));
 		strncpy(info->manufacturer, manufacturer, sizeof(info->manufacturer));
 		if (cl_opts->opt_position &&
-			(cl_opts->opt_position == found_debuggers)) {
+			(cl_opts->opt_position == (found_debuggers + 1))) {
 			found_debuggers = 1;
 			break;
+		} else {
+			found_debuggers++;
 		}
 	}
+	if ((found_debuggers == 0) && ftdi_unknown)
+		DEBUG_WARN("Generic FTDI MPSSE VID/PID found. Please specify exact type with \"-c <cable>\" !\n");
+	if ((found_debuggers == 1) && !cl_opts->opt_cable && (type == BMP_TYPE_LIBFTDI))
+		cl_opts->opt_cable = active_cable;
+	if (!found_debuggers && cl_opts->opt_list_only)
+		DEBUG_WARN("No usable debugger found\n");
 	if ((found_debuggers > 1) ||
 		((found_debuggers == 1) && (cl_opts->opt_list_only))) {
 		if (!report) {
@@ -242,12 +280,16 @@ void platform_init(int argc, char **argv)
 	if (cl_opts.opt_device) {
 		info.bmp_type = BMP_TYPE_BMP;
 	} else if (cl_opts.opt_cable) {
-		/* check for libftdi devices*/
-		res = ftdi_bmp_init(&cl_opts, &info);
-		if (res)
-			exit(-1);
-		else
-			info.bmp_type = BMP_TYPE_LIBFTDI;
+		if ((!strcmp(cl_opts.opt_cable, "list")) ||
+			(!strcmp(cl_opts.opt_cable, "l"))) {
+			cable_desc_t *cable = &cable_desc[0];
+			DEBUG_WARN("Available cables:\n");
+			for (; cable->name; cable++) {
+				DEBUG_WARN("\t%s\n", cable->name);
+			}
+			exit(0);
+		}
+		info.bmp_type = BMP_TYPE_LIBFTDI;
 	} else if (find_debuggers(&cl_opts, &info)) {
 		exit(-1);
 	}
@@ -269,6 +311,8 @@ void platform_init(int argc, char **argv)
 			exit(-1);
 		break;
 	case BMP_TYPE_LIBFTDI:
+		if (ftdi_bmp_init(&cl_opts, &info))
+			exit(-1);
 		break;
 	case BMP_TYPE_JLINK:
 		if (jlink_init(&info))
@@ -490,33 +534,51 @@ static void ap_decode_access(uint16_t addr, uint8_t RnW)
 		fprintf(stderr, "Read  ");
 	else
 		fprintf(stderr, "Write ");
-	switch(addr) {
-	case 0x00:
-		if (RnW)
-			fprintf(stderr, "DP_DPIDR :");
-		else
-			fprintf(stderr, "DP_ABORT :");
-		break;
-	case 0x004: fprintf(stderr, "CTRL/STAT:");
-		break;
-	case 0x008:
-		if (RnW)
-			fprintf(stderr, "RESEND   :");
-		else
-			fprintf(stderr, "DP_SELECT:");
-		break;
-	case 0x00c: fprintf(stderr, "DP_RDBUFF:");
-		break;
-	case 0x100: fprintf(stderr, "AP_CSW   :");
-		break;
-	case 0x104: fprintf(stderr, "AP_TAR   :");
-		break;
-	case 0x10c: fprintf(stderr, "AP_DRW   :");
-		break;
-	case 0x1f8: fprintf(stderr, "AP_BASE  :");
-		break;
-	case 0x1fc: fprintf(stderr, "AP_IDR   :");
-		break;
+	if (addr < 0x100) {
+		switch(addr) {
+		case 0x00:
+			if (RnW)
+				fprintf(stderr, "DP_DPIDR :");
+			else
+				fprintf(stderr, "DP_ABORT :");
+			break;
+		case 0x04: fprintf(stderr, "CTRL/STAT:");
+			break;
+		case 0x08:
+			if (RnW)
+				fprintf(stderr, "RESEND   :");
+			else
+				fprintf(stderr, "DP_SELECT:");
+			break;
+		case 0x0c: fprintf(stderr, "DP_RDBUFF:");
+			break;
+		default: fprintf(stderr, "Unknown %02x   :", addr);
+		}
+	} else {
+		fprintf(stderr, "AP 0x%02x ", addr >> 8);
+		switch (addr & 0xff) {
+		case 0x00: fprintf(stderr, "CSW   :");
+			break;
+		case 0x04: fprintf(stderr, "TAR   :");
+			break;
+		case 0x0c: fprintf(stderr, "DRW   :");
+			break;
+		case 0x10: fprintf(stderr, "DB0   :");
+			break;
+		case 0x14: fprintf(stderr, "DB1   :");
+			break;
+		case 0x18: fprintf(stderr, "DB2   :");
+			break;
+		case 0x1c: fprintf(stderr, "DB3   :");
+			break;
+		case 0xf8: fprintf(stderr, "BASE  :");
+			break;
+		case 0xf4: fprintf(stderr, "CFG   :");
+			break;
+		case 0xfc: fprintf(stderr, "IDR   :");
+			break;
+		default:   fprintf(stderr, "RSVD%02x:", addr & 0xff);
+		}
 	}
 }
 
