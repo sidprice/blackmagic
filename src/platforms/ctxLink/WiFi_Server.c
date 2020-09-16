@@ -152,6 +152,7 @@ void DoSwoTraceSend (void);
 static bool pressActive = false; ///< True to press active
 bool wpsActive = false;			 ///< True to wps active
 bool httpActive = false;		 ///< True when HTTP provisioning is active
+bool waitingAccessPoint = false; ///< Set true when http provisioning is started, this allows ignoring of that connection event	
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /// <summary> Exti 9 5 isr.</summary>
@@ -371,6 +372,61 @@ static enum WiFi_TCPServerStates
 struct sockaddr_in gdb_addr = { 0 } ;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+/// <summary> Actions when Wi-Fi is deisconnected.</summary>
+///
+/// <remarks> Sid Price, 6/10/2020.
+///		Close any client connections and shut down active servers
+///	</remarks>
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void doWiFiDisconnect(void) {
+	//
+	// Clients
+	//
+	if (gdbClientSocket != SOCK_ERR_INVALID)
+	{
+		close(gdbClientSocket);
+		g_gdbClientConnected = false;
+		gdbClientSocket = SOCK_ERR_INVALID;
+	}
+	if (uartDebugClientSocket != SOCK_ERR_INVALID)
+	{
+		close(uartDebugClientSocket);
+		g_uartDebugClientConnected = false;
+		uartDebugClientSocket = SOCK_ERR_INVALID;
+	}
+	if (swoTraceClientSocket != SOCK_ERR_INVALID)
+	{
+		close(swoTraceClientSocket);
+		g_swoTraceClientConnected = false;
+		swoTraceClientSocket = SOCK_ERR_INVALID;
+	}
+	//
+	// Servers
+	//
+	if (gdbServerSocket != SOCK_ERR_INVALID)
+	{
+		GDB_TCPServerState = SM_IDLE;
+		g_gdbServerIsRunning = false;
+		close(gdbServerSocket);
+		gdbServerSocket = SOCK_ERR_INVALID;
+	}
+	if (uartDebugServerSocket != SOCK_ERR_INVALID)
+	{
+		UART_DEBUG_TCPServerState = SM_IDLE;
+		g_uartDebugServerIsRunning = false;
+		close(uartDebugServerSocket);
+		uartDebugServerSocket = SOCK_ERR_INVALID;
+	}
+	if (swoTraceServerSocket != SOCK_ERR_INVALID)
+	{
+		SWO_TRACE_TCPServerState = SM_IDLE;
+		g_swoTraceServerIsRunning = false;
+		close(swoTraceServerSocket);
+		swoTraceServerSocket = SOCK_ERR_INVALID;
+	}
+}
+////////////////////////////////////////////////////////////////////////////////////////////////////
 /// <summary> GDB TCP server.</summary>
 ///
 /// <remarks> Sid Price, 3/22/2018.</remarks>
@@ -416,7 +472,8 @@ void GDB_TCPServer(void)
 	case SM_CLOSING:
 		// Close the socket connection.
 		close(gdbServerSocket);
-		GDB_TCPServerState = SM_HOME;
+		gdbServerSocket = SOCK_ERR_INVALID;
+		GDB_TCPServerState = SM_IDLE;
 		break;
 	}
 }
@@ -478,7 +535,8 @@ void DATA_TCPServer (void)
 		{
 			// Close the socket connection.
 			close (uartDebugServerSocket);
-			UART_DEBUG_TCPServerState = SM_HOME;
+			uartDebugServerSocket = SOCK_ERR_INVALID;
+			UART_DEBUG_TCPServerState = SM_IDLE;
 			}	break;
 	}
 	//
@@ -527,7 +585,8 @@ void DATA_TCPServer (void)
 		{
 			// Close the socket connection.
 			close (swoTraceServerSocket);
-			SWO_TRACE_TCPServerState = SM_HOME;
+			swoTraceServerSocket = SOCK_ERR_INVALID;
+			SWO_TRACE_TCPServerState = SM_IDLE;
 			break;
 		}
 	}
@@ -583,13 +642,22 @@ static void AppWifiCallback(uint8_t msgType, void *pvMsg)
 			tstrM2mWifiStateChanged *pstrWifiState = (tstrM2mWifiStateChanged *) pvMsg;
 			if (pstrWifiState->u8CurrState == M2M_WIFI_CONNECTED)
 			{
-				dprintf("APP_WIFI_CB[%d]: Connected to AP\r\n", msgType);
-				g_wifi_connected = true;
 				//
-				// Clear flags in case they were active
+				// If we are in http access mode there will be a connection event when the
+				// provisioning client connects, we need to ignore this event.
 				//
-				wpsActive = false;
-				httpActive = false;
+				// The connection event is the provisioning client if:
+				//		httpActive == true && waitingAccessPoint == true
+				//
+				// Otherwise it is a valid ctxLink-> AP connection
+				//
+				if (httpActive == true && waitingAccessPoint == true) {
+					waitingAccessPoint = false;		// Next event is the ctxLink to AP event
+				}
+				else {
+					dprintf("APP_WIFI_CB[%d]: Connected to AP\r\n", msgType);
+					g_wifi_connected = true;
+				}
 			}
 			else if (pstrWifiState->u8CurrState == M2M_WIFI_DISCONNECTED)
 			{
@@ -605,6 +673,11 @@ static void AppWifiCallback(uint8_t msgType, void *pvMsg)
 
 		case M2M_WIFI_IP_ADDRESS_ASSIGNED_EVENT:
 		{
+			t_wifiEventData *p_wifiEventData = (t_wifiEventData *)pvMsg;
+			if (p_wifiEventData != NULL)
+			{
+				g_ipAddressAssigned = true;
+			}
 			g_ipAddressAssigned = true;
 			break;
 		}
@@ -643,7 +716,6 @@ static void AppWifiCallback(uint8_t msgType, void *pvMsg)
 			{
 				m2m_wifi_stop_provision_mode ();
 			}
-			httpActive = false;
 			break;
 		}
 		case M2M_WIFI_DEFAULT_CONNNECT_EVENT:
@@ -1342,6 +1414,7 @@ void APP_Task(void)
 		{
 			if ( isWifiConnected () == true )
 			{
+				wpsActive = false;
 				//
 				// We have a connection, start the TCP server
 				//
@@ -1389,6 +1462,7 @@ void APP_Task(void)
 			apConfig.au8DHCPServerIP[3] = 1;
 			m2m_wifi_start_provision_mode (&apConfig, "ctxLink_Config.com", enableRedirect);
 			httpActive = true;
+			waitingAccessPoint = true;
 			appState = APP_STATE_WAIT_PROVISION_EVENT;
 			break;
 		}
@@ -1399,6 +1473,7 @@ void APP_Task(void)
 		{
 			if ( isWifiConnected () == true )
 			{
+				httpActive = false;
 				//
 				// We have a connection, start the TCP server
 				//
@@ -1596,6 +1671,7 @@ void APP_Task(void)
 					*/
 					if ( isWifiConnected () == true )
 					{
+						doWiFiDisconnect();
 						m2m_wifi_disconnect ();
 						appState = APP_STATE_WAIT_WIFI_DISCONNECT_FOR_HTTP;
 					}
@@ -1614,6 +1690,7 @@ void APP_Task(void)
 					*/
 					if ( isWifiConnected () == true )
 					{
+						doWiFiDisconnect();
 						m2m_wifi_disconnect ();
 						appState = APP_STATE_WAIT_WIFI_DISCONNECT_FOR_WPS;
 					}
