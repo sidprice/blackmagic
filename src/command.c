@@ -65,6 +65,7 @@ static bool cmd_halt_timeout(target_s *t, int argc, const char **argv);
 static bool cmd_connect_reset(target_s *t, int argc, const char **argv);
 static bool cmd_reset(target_s *t, int argc, const char **argv);
 static bool cmd_tdi_low_reset(target_s *t, int argc, const char **argv);
+static bool cmd_skip_cortex_probing(target_s *t, int argc, const char **argv);
 #ifdef PLATFORM_HAS_POWER_SWITCH
 static bool cmd_target_power(target_s *t, int argc, const char **argv);
 #endif
@@ -87,6 +88,7 @@ const command_s cmd_list[] = {
 	{"help", cmd_help, "Display help for monitor commands"},
 	{"jtag_scan", cmd_jtag_scan, "Scan JTAG chain for devices"},
 	{"swd_scan", cmd_swd_scan, "Scan SWD interface for devices: [TARGET_ID]"},
+	{"skip", cmd_skip_cortex_probing, "Skip Cortex-M probing (enable|disable)"},
 	{"swdp_scan", cmd_swd_scan, "Deprecated: use swd_scan instead"},
 	{"auto_scan", cmd_auto_scan, "Automatically scan all chain types for devices"},
 	{"frequency", cmd_frequency, "set minimum high and low times: [FREQ]"},
@@ -683,5 +685,24 @@ static bool cmd_heapinfo(target_s *t, int argc, const char **argv)
 		target_set_heapinfo(t, heap_base, heap_limit, stack_base, stack_limit);
 	} else
 		gdb_outf("heapinfo heap_base heap_limit stack_base stack_limit\n");
+	return true;
+}
+
+/* Allow to skip device probing. Usefull to debug yet unsupported Cortex-M SOC
+ *
+ * Default is to do probing
+ */
+bool cortexm_skip_probing = true;
+
+static bool cmd_skip_cortex_probing(target_s *t, int argc, const char **argv)
+{
+	(void)t;
+	if (argc == 1) {
+		gdb_outf("Probing for devices %sabled\n", cortexm_skip_probing ? "en" : "dis");
+	} else {
+		bool enable;
+		if (parse_enable_or_disable(argv[1], &enable))
+			cortexm_skip_probing = enable;
+	}
 	return true;
 }

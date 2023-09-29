@@ -715,6 +715,9 @@ bool cortexm_probe(adiv5_access_port_s *ap)
 #else
 	DEBUG_WARN("Please report unknown device with Designer 0x%x Part ID 0x%x\n", t->designer_code, t->part_id);
 #endif
+#undef PROBE
+	if (t->flash == NULL && t->ram == NULL)
+		target_add_ram(t, 0x00000000, 0); /* Ensure that GDB does not have an empty memory map */
 	return true;
 }
 
@@ -1794,8 +1797,8 @@ static int cortexm_hostio_request(target_s *t)
 		ret = -1;
 		uint32_t fio_stat[16]; /* same size as fio_stat in gdb/include/gdb/fileio.h */
 		//DEBUG("SYS_FLEN fio_stat addr %p\n", fio_stat);
-		void (*saved_mem_read)(target_s *t, void *dest, target_addr_t src, size_t len);
-		void (*saved_mem_write)(target_s *t, target_addr_t dest, const void *src, size_t len);
+		void (*saved_mem_read)(target_s * t, void *dest, target_addr_t src, size_t len);
+		void (*saved_mem_write)(target_s * t, target_addr_t dest, const void *src, size_t len);
 		saved_mem_read = t->mem_read;
 		saved_mem_write = t->mem_write;
 		t->mem_read = probe_mem_read;
@@ -1826,8 +1829,8 @@ static int cortexm_hostio_request(target_s *t)
 		} fio_timeval;
 
 		//DEBUG("SYS_TIME fio_timeval addr %p\n", &fio_timeval);
-		void (*saved_mem_read)(target_s *t, void *dest, target_addr_t src, size_t len);
-		void (*saved_mem_write)(target_s *t, target_addr_t dest, const void *src, size_t len);
+		void (*saved_mem_read)(target_s * t, void *dest, target_addr_t src, size_t len);
+		void (*saved_mem_write)(target_s * t, target_addr_t dest, const void *src, size_t len);
 		saved_mem_read = t->mem_read;
 		saved_mem_write = t->mem_write;
 		t->mem_read = probe_mem_read;
@@ -1859,8 +1862,8 @@ static int cortexm_hostio_request(target_s *t)
 	case SEMIHOSTING_SYS_READC: { /* readc */
 		uint8_t ch = '?';
 		//DEBUG("SYS_READC ch addr %p\n", &ch);
-		void (*saved_mem_read)(target_s *t, void *dest, target_addr_t src, size_t len);
-		void (*saved_mem_write)(target_s *t, target_addr_t dest, const void *src, size_t len);
+		void (*saved_mem_read)(target_s * t, void *dest, target_addr_t src, size_t len);
+		void (*saved_mem_write)(target_s * t, target_addr_t dest, const void *src, size_t len);
 		saved_mem_read = t->mem_read;
 		saved_mem_write = t->mem_write;
 		t->mem_read = probe_mem_read;

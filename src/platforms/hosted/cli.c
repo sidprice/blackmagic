@@ -169,6 +169,7 @@ static void cl_help(char **argv)
 			   "\t-R, --reset      Reset the device. If followed by 'h', this will be done using\n"
 			   "\t                   the hardware reset line instead of over the debug link\n"
 			   "\t-H, --high-level Do not use the high level command API (bmp-remote)\n"
+			   "\t-N              Do not probe. Usefull if probe causes hickup\n"
 			   "\t-M, --monitor    Run target-specific monitor commands. This option\n"
 			   "\t                   can be repeated for as many commands you wish to run.\n"
 			   "\t                   If the command contains spaces, use quotes around the\n"
@@ -237,7 +238,7 @@ void cl_init(bmda_cli_options_s *opt, int argc, char **argv)
 	opt->opt_scanmode = BMP_SCAN_SWD;
 	opt->opt_mode = BMP_MODE_DEBUG;
 	while (true) {
-		const int option = getopt_long(argc, argv, "eEFhHv:Od:f:s:I:c:Cln:m:M:wVtTa:S:jApP:rR::", long_options, NULL);
+		const int option = getopt_long(argc, argv, "eEFhHv:Od:f:s:I:c:Cln:m:NM:wVtTa:S:jApP:rR::", long_options, NULL);
 		if (option == -1)
 			break;
 
@@ -358,6 +359,9 @@ void cl_init(bmda_cli_options_s *opt, int argc, char **argv)
 		case 'n':
 			if (optarg)
 				opt->opt_target_dev = strtol(optarg, NULL, 0);
+			break;
+		case 'N':
+			cortexm_skip_probing = false;
 			break;
 		case 'm':
 			if (optarg)

@@ -25,6 +25,8 @@
 
 #include "target.h"
 
+extern bool cortexm_skip_probing;
+
 int command_process(target_s *t, char *cmd_buffer);
 
 /*
