@@ -717,26 +717,44 @@ static bool partial_match(const char *const str, const char *const what, const s
 	return strncasecmp(str, what, str_len) == 0;
 }
 
+static bool check_command_args(const char *const input, uint32_t *result)
+{
+	bool good_input = false;
+	char *end_pointer;
+
+	*result = strtoul(input, &end_pointer, 0);
+	if (end_pointer != NULL && strcmp(end_pointer, input) != 0)
+		good_input = true;
+	return good_input;
+}
+
 static bool stm32f4_cmd_option(target_s *t, int argc, const char **argv)
 {
+	bool input_error = false;
 	const size_t opt_bytes = stm32f4_opt_bytes_for(t->part_id);
 	if (argc == 2 && partial_match(argv[1], option_cmd_erase, OPTION_CMD_LEN(option_cmd_erase)))
 		stm32f4_option_write_default(t);
 	else if (argc > 2 && partial_match(argv[1], option_cmd_write, OPTION_CMD_LEN(option_cmd_write))) {
 		uint32_t val[3] = {0};
 		size_t count = argc > 4 ? 3 : argc - 1;
-		val[0] = strtoul(argv[2], NULL, 0);
-		if (argc > 3) {
-			val[1] = strtoul(argv[3], NULL, 0);
-			if (argc > 4)
-				val[2] = strtoul(argv[4], NULL, 0);
-		}
 
-		if (optcr_mask(t, val))
-			stm32f4_option_write(t, val, count);
-		else
-			tc_printf(t, "error\n");
+		if (check_command_args(argv[2], &val[0])) {
+			if (argc > 3) {
+				val[1] = strtoul(argv[3], NULL, 0);
+				if (argc > 4)
+					val[2] = strtoul(argv[4], NULL, 0);
+			}
+
+			if (optcr_mask(t, val))
+				stm32f4_option_write(t, val, count);
+			else
+				tc_printf(t, "error\n");
+		} else {
+			input_error = true;
+		}
 	} else
+		input_error = true;
+	if (input_error)
 		tc_printf(t, "usage: monitor option erase\nusage: monitor option write <OPTCR>%s%s\n",
 			opt_bytes > 1U ? " <OPTCR1>" : "", opt_bytes == 3U ? " <OPTCR2>" : "");
 
