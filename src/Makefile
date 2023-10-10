@@ -27,6 +27,7 @@ SRC =              \
 	adiv5.c        \
 	adiv5_jtag.c   \
 	adiv5_swd.c    \
+	buffer_utils.c \
 	command.c      \
 	cortex.c       \
 	cortexa.c      \

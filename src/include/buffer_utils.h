@@ -37,6 +37,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+bool check_command_args(const char *const input, uint32_t *result);
+
 static inline void write_le2(uint8_t *const buffer, const size_t offset, const uint16_t value)
 {
 	buffer[offset + 0U] = value & 0xffU;
