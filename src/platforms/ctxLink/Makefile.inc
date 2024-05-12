@@ -6,6 +6,7 @@ OBJCOPY = $(CROSS_COMPILE)objcopy
 CFLAGS += -Istm32/include -mcpu=cortex-m4 -mthumb \
 	-mfloat-abi=hard -mfpu=fpv4-sp-d16 \
 	-DSTM32F4 -DCTX_LINK -I../deps/libopencm3/include \
+	-I./platforms/ctxLink/winc1500 -I./platforms/ctxLink/winc1500/src \
 	-Iplatforms/common/stm32
 
 LINKER_SCRIPT=platforms/ctxlink/ctxlink.ld
@@ -25,7 +26,7 @@ LDFLAGS += $(LDFLAGS_BOOT)
 CFLAGS += -DDFU_SERIAL_LENGTH=13
 endif
 
-VPATH += platforms/common/stm32
+VPATH += platforms/common/stm32 platforms/ctxlink/winc1500 platforms/ctxlink/winc1500/src
 
 SRC +=               \
 	platform.c \
@@ -34,7 +35,16 @@ SRC +=               \
 	serialno.c	\
 	timing.c	\
 	timing_stm32.c	\
-	ctxLink_gdb_if.c
+	ctxLink_gdb_if.c  \
+	winc1500_driver_stub_api.c \
+	wf_asic.c \
+	wf_hif.c \
+	wf_ota.c \
+	wf_socket.c \
+	wf_spi.c \
+	wf_spi_flash.c \
+	wf_utils.c \
+	wf_wifi.c \
 
 ifneq ($(BMP_BOOTLOADER), 1)
 all:	blackmagic.bin

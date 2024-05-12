@@ -57,6 +57,40 @@
  * SW_BOOTLOADER	PB12	(input) System Bootloader button
  */
 
+// Port definitions for WINC1500 wireless module
+//
+//		The WINC1500 is attached to SPI_2
+//
+#define WINC1500_SPI_CHANNEL SPI2
+#define WINC1500_RCC_SPI     RCC_SPI2
+
+#define WINC1500_PORT    GPIOB  // Port for CS and IRQ
+#define WINC1500_SPI_NCS GPIO15 // Chip select
+#define WINC1500_IRQ     GPIO9  // IRQ input
+//
+// Reset port and pin
+//
+#define WINC1500_RESET_PORT GPIOB
+#define WINC1500_RESET      GPIO14 // Reset output
+
+//
+// Chip enable port and pin
+//
+#define WINC1500_CHIP_EN_PORT GPIOB
+#define WINC1500_CHIP_EN      GPIO13
+
+//
+// SPI clock port
+//
+#define WINC1500_SPI_CLK_PORT GPIOB
+#define WINC1500_SPI_CLK      GPIO10
+//
+// SPI Data port
+//
+#define WINC1500_SPI_DATA_PORT GPIOC
+#define WINC1500_SPI_MISO      GPIO2
+#define WINC1500_SPI_MOSI      GPIO3
+
 /* Hardware definitions... */
 #define JTAG_PORT    GPIOA
 #define TDI_PORT     JTAG_PORT
@@ -77,10 +111,10 @@
 #define SWCLK_PIN      TCK_PIN
 #define SWDIO_DIR_PIN  TMS_DIR_PIN
 
-#define TRST_PORT GPIOA
-#define TRST_PIN  GPIO2
-#define NRST_PORT GPIOA
-#define NRST_PIN  GPIO2
+#define TRST_PORT       GPIOA
+#define TRST_PIN        GPIO2
+#define NRST_PORT       GPIOA
+#define NRST_PIN        GPIO2
 #define NRST_SENSE_PORT GPIOA
 #define NRST_SENSE_PIN  GPIO7
 
