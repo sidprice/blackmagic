@@ -31,11 +31,13 @@ VPATH += platforms/common/stm32 platforms/ctxlink/winc1500 platforms/ctxlink/win
 SRC +=               \
 	platform.c \
 	traceswodecode.c \
-	traceswo.c	\
 	serialno.c	\
 	timing.c	\
 	timing_stm32.c	\
 	ctxLink_gdb_if.c  \
+	WiFi_Server.c \
+	ctxLink_mode_led.c \
+	ctxLink_traceswo.c \
 	winc1500_driver_stub_api.c \
 	wf_asic.c \
 	wf_hif.c \

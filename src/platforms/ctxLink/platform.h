@@ -57,6 +57,14 @@
  * SW_BOOTLOADER	PB12	(input) System Bootloader button
  */
 
+//
+// Define the network name for the probe
+//
+//	TODO, use part or all of the MAC address to make this unique.
+//
+
+#define ctxLink_NetName "ctxLink_0001"
+
 // Port definitions for WINC1500 wireless module
 //
 //		The WINC1500 is attached to SPI_2
@@ -135,6 +143,20 @@
 #define PWR_BR_PORT GPIOB
 #define PWR_BR_PIN  GPIO1
 
+//
+// SWO UART definitions
+//
+#define SWO_UART        USART6
+#define SWO_UART_CR1    USART6_CR1
+#define SWO_UART_DR     USART6_DR
+#define SWO_UART_CLK    RCC_USART6
+#define SWO_UART_PORT   GPIOC
+#define SWO_UART_RX_PIN GPIO7
+#define SWO_UART_ISR    usart6_isr
+#define SWO_UART_IRQ    NVIC_USART6_IRQ
+
+#define TRACESWO_PROTOCOL 2 /* 1 = Manchester, 2 = NRZ / async */
+
 /* USB pin definitions */
 #define USB_PU_PORT GPIOA
 #define USB_PORT    GPIOA
@@ -209,6 +231,8 @@
 #define IRQ_PRI_USBUSART     (2U << 4U)
 #define IRQ_PRI_USBUSART_DMA (2U << 4U)
 #define IRQ_PRI_TRACE        (0U << 4U)
+#define IRQ_PRI_SWOUSART     (1 << 4)
+#define IRQ_PRI_TRACE_TIM    (3 << 4)
 
 #define TRACE_TIM          TIM3
 #define TRACE_TIM_CLK_EN() rcc_periph_clock_enable(RCC_TIM3)
@@ -227,5 +251,11 @@
 	{                                             \
 		gpio_set_val(LED_PORT, LED_ERROR, state); \
 	}
+
+void platform_tasks(void); // Must be called from GDB main loop
+const char *platform_battery_voltage(void);
+bool platform_check_battery_voltage(void);
+bool platform_has_network_client(uint8_t *lpBuf_rx, uint8_t *lpBuf_rx_in, uint8_t *lpBuf_rx_out, unsigned fifoSize);
+bool platform_configure_uart(char *configurationString);
 
 #endif /* PLATFORMS_CTXLINK_PLATFORM_H */
