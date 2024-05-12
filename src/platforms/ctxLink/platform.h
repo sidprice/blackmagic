@@ -252,7 +252,7 @@
 		gpio_set_val(LED_PORT, LED_ERROR, state); \
 	}
 
-void platform_tasks(void); // Must be called from GDB main loop
+void platform_tasks(void);
 const char *platform_battery_voltage(void);
 bool platform_check_battery_voltage(void);
 bool platform_has_network_client(uint8_t *lpBuf_rx, uint8_t *lpBuf_rx_in, uint8_t *lpBuf_rx_out, unsigned fifoSize);

@@ -32,6 +32,9 @@
 #ifdef ENABLE_RTT
 #include "rtt.h"
 #endif
+#ifdef CTX_LINK
+#include "platform.h"
+#endif
 
 /* This has to be aligned so the remote protocol can re-use it without causing Problems */
 static char BMD_ALIGN_DEF(8) pbuf[GDB_PACKET_BUFFER_SIZE + 1U];
@@ -67,6 +70,9 @@ static void bmp_poll_loop(void)
 	if (pbuf[0] != '\x04' || cur_target)
 		SET_IDLE_STATE(false);
 	gdb_main(pbuf, GDB_PACKET_BUFFER_SIZE, size);
+#ifdef CTX_LINK
+	platform_tasks();
+#endif
 }
 
 #if PC_HOSTED == 1
