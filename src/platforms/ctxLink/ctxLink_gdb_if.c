@@ -33,6 +33,7 @@
 #include "platform.h"
 #include "usb_serial.h"
 #include "gdb_if.h"
+#include "WiFi_Server.h"
 
 static uint32_t count_out;
 static uint32_t count_in;
@@ -42,7 +43,7 @@ static char buffer_in[CDCACM_PACKET_SIZE];
 static volatile uint32_t count_new;
 static char double_buffer_out[CDCACM_PACKET_SIZE];
 
-void gdb_if_putchar(const char c, const int flush)
+void gdb_usb_putchar(const char c, const int flush)
 {
 	buffer_in[count_in++] = c;
 	if (flush || count_in == CDCACM_PACKET_SIZE) {
@@ -100,9 +101,8 @@ static void gdb_if_update_buf(void)
 		__WFI();
 }
 
-char gdb_if_getchar(void)
+char gdb_usb_getchar(void)
 {
-	platform_tasks();
 	while (out_ptr >= count_out) {
 		/*
 		 * Detach if port closed
@@ -121,7 +121,7 @@ char gdb_if_getchar(void)
 	return buffer_out[out_ptr++];
 }
 
-char gdb_if_getchar_to(const uint32_t timeout)
+char gdb_usb_getchar_to(const uint32_t timeout)
 {
 	platform_timeout_s receive_timeout;
 	platform_timeout_set(&receive_timeout, timeout);
@@ -145,4 +145,37 @@ char gdb_if_getchar_to(const uint32_t timeout)
 		return buffer_out[out_ptr++];
 	/* XXX: Need to find a better way to error return than this. This provides '\xff' characters. */
 	return -1;
+}
+
+void gdb_if_putchar(char c, int flush)
+{
+	if (isGDBClientConnected() == true) {
+		WiFi_gdb_putchar(c, flush);
+	} else {
+		gdb_usb_putchar(c, flush);
+	}
+}
+
+char gdb_if_getchar(void)
+{
+	platform_tasks();
+	if (isGDBClientConnected() == true) {
+		return WiFi_GetNext();
+	} else {
+		if (usb_get_config() == 1) {
+			return gdb_usb_getchar();
+		} else {
+			return (0xFF);
+		}
+	}
+}
+
+char gdb_if_getchar_to(uint32_t timeout)
+{
+	platform_tasks();
+	if (isGDBClientConnected() == true) {
+		return WiFi_GetNext_to(timeout);
+	} else {
+		return gdb_usb_getchar_to(timeout);
+	}
 }
