@@ -5,8 +5,6 @@
 //
 
 #include "general.h"
-// #include "cdcacm.h"
-// #include "usbuart.h"
 #include "morse.h"
 
 #include <libopencm3/stm32/f4/rcc.h>
@@ -83,12 +81,6 @@ static unsigned char localSwoTraceBuffer[SWO_TRACE_INPUT_BUFFER_SIZE] = {0}; ///
 static char uartClientSignon[] = "\r\nctxLink UART connection.\r\nPlease enter the UART setup as baud, bits, parity, "
 								 "stop.\r\ne.g. 38400,8,N,1\r\n\r\n";
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Values that represent Application states.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 typedef enum WiFi_APP_STATES {
 	APP_STATE_WAIT_FOR_DRIVER_INIT,         ///< 0
 	APP_STATE_READ_MAC_ADDR,                ///< 1
@@ -109,7 +101,7 @@ typedef enum WiFi_APP_STATES {
 
 APP_STATES appState; ///< State of the application
 /*
- * Define the send queue, this is used in the sockey event callback
+ * Define the send queue, this is used in the socket event callback
  * to correctly process output and sync with ACKs
  */
 #define SEND_QUEUE_SIZE        4
@@ -118,12 +110,6 @@ APP_STATES appState; ///< State of the application
 #define BUTTON_PRESS_WPS               2500 // Enter WPS mode if 2.5 Seconds > 2.5S < 5 Seconds
 #define BUTTON_PRESS_HTTP_PROVISIONING 5000
 #define BUTTON_PRESS_MODE_CANCEL       7500
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> A tag send queue entry.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 typedef struct tagSendQueueEntry {
 	unsigned char packet[SEND_QUEUE_BUFFER_SIZE]; ///< The packet[ send queue buffer size]
@@ -154,12 +140,6 @@ bool httpActive = false;         ///< True when HTTP provisioning is active
 bool waitingAccessPoint =
 	false; ///< Set true when http provisioning is started, this allows ignoring of that connection event
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Exti 9 5 isr.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 void exti9_5_isr(void)
 {
 	//
@@ -184,26 +164,12 @@ static bool runModeLedTask = false; ///< True to run mode LED task
 
 static uint32_t pressTimer = 0; ///< The press timer
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Starts press timer.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 void startPressTimer(void)
 {
 	timer_disable_irq(TIM2, TIM_DIER_CC1IE);
 	pressTimer = 0; // Reset the press timer
 	timer_enable_irq(TIM2, TIM_DIER_CC1IE);
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Gets press timer.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-///
-/// <returns> The press timer.</returns>
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 uint32_t getPressTimer(void)
 {
@@ -242,14 +208,6 @@ bool tim2_isSecondsTimeout(void)
 	return fTimeout;
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Tim 2 isr.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.
-/// 		  1mS interrupt
-/// 		  </remarks>
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 void tim2_isr(void)
 {
 	if (timer_get_flag(TIM2, TIM_SR_CC1IF)) {
@@ -286,13 +244,6 @@ void tim2_isr(void)
 		}
 	}
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Timer2 initialize.</summary>
-///
-/// <remarks> This timer is set up to generate an interrupt
-/// 		  at a period of 1mS</remarks>
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void timer_init(void)
 {
@@ -340,12 +291,6 @@ void timer_init(void)
 	timer_enable_irq(TIM2, TIM_DIER_CC1IE);
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Values that represent TCP server states.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 static enum WiFi_TCPServerStates {
 	SM_HOME = 0,  ///< State of the TCP server
 	SM_LISTENING, ///< An enum constant representing the sm listening option
@@ -353,21 +298,7 @@ static enum WiFi_TCPServerStates {
 	SM_IDLE,      ///< An enum constant representing the sm idle option
 } GDB_TCPServerState = SM_IDLE, UART_DEBUG_TCPServerState = SM_IDLE, SWO_TRACE_TCPServerState = SM_IDLE;
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> A sockaddr in.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 struct sockaddr_in gdb_addr = {0};
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Actions when Wi-Fi is deisconnected.</summary>
-///
-/// <remarks> Sid Price, 6/10/2020.
-///		Close any client connections and shut down active servers
-///	</remarks>
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void doWiFiDisconnect(void)
 {
@@ -411,12 +342,6 @@ void doWiFiDisconnect(void)
 		swoTraceServerSocket = SOCK_ERR_INVALID;
 	}
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> GDB TCP server.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void GDB_TCPServer(void)
 {
@@ -463,12 +388,6 @@ void GDB_TCPServer(void)
 
 struct sockaddr_in uart_debug_addr = {0};
 struct sockaddr_in swo_trace_addr = {0};
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Data TCP Server
-///
-/// <remarks> Same method is used to handle the UART and SWO Trace servers. Note only one may be active
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void DATA_TCPServer(void)
 {
@@ -548,7 +467,7 @@ void DATA_TCPServer(void)
 		// No need to perform any flush.
 		// TCP data in TX FIFO will automatically transmit itself after it accumulates for a while.
 		// If you want to decrease latency (at the expense of wasting network bandwidth on TCP overhead),
-		// perform and explicit flush via the TCPFlush() API.
+		// perform an explicit flush via the TCPFlush() API.
 		break;
 	}
 	case SM_CLOSING: {
@@ -561,10 +480,6 @@ void DATA_TCPServer(void)
 	}
 }
 
-/**
- * @brief 
- * 
- */
 void WiFi_setupSwoTraceServer(void)
 {
 	//
@@ -590,12 +505,6 @@ void WiFi_setupSwoTraceServer(void)
 	SWO_TRACE_TCPServerState = SM_HOME;
 }
 
-/**
- * @brief WINC1500 WiFi callback function
- * 
- * @param msgType 
- * @param pvMsg 
- */
 static void AppWifiCallback(uint8_t msgType, void *pvMsg)
 {
 	switch (msgType) {
@@ -695,14 +604,6 @@ static void AppWifiCallback(uint8_t msgType, void *pvMsg)
 	}
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Query if this object is driver initialize complete.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-///
-/// <returns> True if driver initialize complete, false if not.</returns>
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 bool isDriverInitComplete(void)
 {
 	bool res = g_driverInitComplete;
@@ -710,28 +611,12 @@ bool isDriverInitComplete(void)
 	return res;
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Query if this object is WiFi connected.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-///
-/// <returns> True if WiFi connected, false if not.</returns>
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 bool isWifiConnected(void)
 {
 	bool res = g_wifi_connected;
 	// no need to reset flag "g_wifi_connected" to false. Event will do that.
 	return res;
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Query if this object is IP address assigned.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-///
-/// <returns> True if IP address assigned, false if not.</returns>
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool isIpAddressAssigned(void)
 {
@@ -833,16 +718,6 @@ void processRecvError(SOCKET socket, t_socketRecv *lpRecvData, uint8_t msgType)
 	}
 	}
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Callback, called when the application socket.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-///
-/// <param name="sock">    The sock.</param>
-/// <param name="msgType"> Type of the message.</param>
-/// <param name="pvMsg">   [in,out] If non-null, message describing the pv.</param>
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool aFlag = false;
 static volatile SOCKET sktParam = 0;
@@ -1056,34 +931,15 @@ static void AppSocketCallback(SOCKET sock, uint8_t msgType, void *pvMsg)
 	}
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Is GDB server running.</summary>
-///
-/// <returns> True if server running, false if not.</returns>
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 bool isGDBServerRunning(void)
 {
 	return g_gdbServerIsRunning;
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Is SWO Trace server running.</summary>
-///
-/// <returns> True if server running, false if not.</returns>
-////////////////////////////////////////////////////////////////////////////////////////////////////
 bool swoTraceServerActive(void)
 {
 	return swoTraceServerSocket != SOCK_ERR_INVALID;
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Query if this object is DNS resolved.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-///
-/// <returns> True if DNS resolved, false if not.</returns>
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool isDnsResolved(void)
 {
@@ -1091,14 +947,6 @@ bool isDnsResolved(void)
 	g_dnsResolved = false;
 	return res;
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Query if this object is client connected.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-///
-/// <returns> True if client connected, false if not.</returns>
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool isGDBClientConnected(void)
 {
@@ -1116,12 +964,6 @@ bool isSwoTraceClientConnected(void)
 {
 	return g_swoTraceClientConnected;
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Application initialize.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void APP_Initialize(void)
 {
@@ -1169,12 +1011,6 @@ void APP_Initialize(void)
 
 	exti_select_source(WINC1500_IRQ, WINC1500_PORT);
 	exti_set_trigger(WINC1500_IRQ, EXTI_TRIGGER_FALLING);
-	//	//
-	//// Configure bootloader pin as input, it is used
-	//// to trigger WPS setup mode for WiFi channel
-	////
-	////gpio_mode_setup(SWITCH_PORT, GPIO_MODE_INPUT, GPIO_PUPD_PULLUP, SW_BOOTLOADER_PIN);
-	//gpio_mode_setup(GPIOA, GPIO_MODE_INPUT, GPIO_PUPD_PULLUP, GPIO0);
 	//
 	// Set the port pins of the SPI channel to high-speed I/O
 	//
@@ -1211,12 +1047,6 @@ void APP_Initialize(void)
 	//
 	timer_init();
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Application task.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void APP_Task(void)
 {
@@ -1538,14 +1368,6 @@ void APP_Task(void)
 	}
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> WiFi have input.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-///
-/// <returns> An int.</returns>
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 int WiFi_HaveInput(void)
 {
 	int iResult;
@@ -1554,14 +1376,6 @@ int WiFi_HaveInput(void)
 	// m2mStub_EintEnable ();
 	return (iResult);
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> WiFi get next.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-///
-/// <returns> A char.</returns>
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 unsigned char WiFi_GetNext(void)
 {
@@ -1578,16 +1392,6 @@ unsigned char WiFi_GetNext(void)
 	m2mStub_EintEnable();
 	return (cReturn);
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> WiFi get next to.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-///
-/// <param name="timeout"> The timeout.</param>
-///
-/// <returns> A char.</returns>
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 unsigned char WiFi_GetNext_to(uint32_t timeout)
 {
@@ -1615,12 +1419,6 @@ unsigned char WiFi_GetNext_to(uint32_t timeout)
 	return (c);
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> Executes the send operation.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 void DoGDBSend(void)
 {
 	send(gdbClientSocket, &(gdbSendQueue[uiGDBSendQueueOut].packet[0]), gdbSendQueue[uiGDBSendQueueOut].len, 0);
@@ -1644,10 +1442,6 @@ void DoSwoTraceSend(void)
 {
 	send(swoTraceClientSocket, &(swoTraceSendQueue[uiSwoTraceSendQueueOut].packet[0]),
 		swoTraceSendQueue[uiSwoTraceSendQueueOut].len, 0);
-	// m2mStub_EintDisable ();
-	// uiSwoTraceSendQueueOut = (uiSwoTraceSendQueueOut + 1) % SEND_QUEUE_SIZE;
-	// uiSwoTraceSendQueueLength -= 1;
-	// m2mStub_EintEnable ();
 }
 
 void SendUartData(uint8_t *lpBuffer, uint8_t length)
@@ -1685,15 +1479,6 @@ void SendSwoTraceData(uint8_t *lpBuffer, uint8_t length)
 
 static unsigned char sendBuffer[1024] = {0}; ///< The send buffer[ 1024]
 static unsigned int sendCount = 0;           ///< Number of sends
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-/// <summary> WiFi putchar.</summary>
-///
-/// <remarks> Sid Price, 3/22/2018.</remarks>
-///
-/// <param name="theChar"> the character.</param>
-/// <param name="flush">   The flush.</param>
-////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void WiFi_gdb_putchar(unsigned char theChar, int flush)
 {
