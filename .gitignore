@@ -27,3 +27,5 @@ scripts/swolisten
 
 .direnv/
 STM32F401.svd
+
+deps/winc1500
