@@ -38,16 +38,7 @@ probe_ctxlink_sources = files(
 	'ctxlink_gdb_if.c ',
 	'WiFi_Server.c',
 	'ctxLink_mode_led.c',
-	'ctxLink_traceswo.c',
-	'winc1500_driver_stub_api.c',
-	'wf_asic.c',
-	'wf_hif.c',
-	'wf_ota.c',
-	'wf_socket.c',
-	'wf_spi.c',
-	'wf_spi_flash.c',
-	'wf_utils.c',
-	'wf_wifi.c'
+	'ctxLink_traceswo.c'
 )
 
 bmd_bootloader = get_option('bmd_bootloader')
