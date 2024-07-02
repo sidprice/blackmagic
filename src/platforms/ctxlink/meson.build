@@ -68,14 +68,6 @@ probe_host = declare_dependency(
 	dependencies: [platform_common, platform_stm32f4, winc1500],
 )
 
-probe_bootloader = declare_dependency(
-	include_directories: [platform_common_includes, probe_ctxlink_includes],
-	sources: probe_ctxlink_dfu_sources,
-	compile_args: probe_ctxlink_args,
-	link_args: probe_ctxlink_commonn_link_args,
-	dependencies: platform_stm32f4_dfu,
-)
-
 summary(
 	{
 		'Name': 'ctxLink',
