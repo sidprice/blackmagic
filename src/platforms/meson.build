@@ -36,9 +36,18 @@ libopencm3 = subproject(
 	],
 )
 
+# Pull in the winc1500 subproject for variouis platform dependencies
+winc1500 = subproject(
+	'winc1500',
+	default_options: [
+		'c_std=c11',
+	],
+)
+
 subdir('common')
 subdir('common/stm32')
 subdir('common/tm4c')
+
 
 # Map probe options aliases to probe directory
 # This is used to allow multiple probes share the same source code
