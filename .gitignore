@@ -29,3 +29,7 @@ scripts/swolisten
 STM32F401.svd
 
 deps/winc1500
+ozone/ctxlink_makefile_build.jdebug
+ozone/ctxlink_makefile_build.jdebug.user
+ozone/ctxLink_meson_build.jdebug
+ozone/ctxLink_meson_build.jdebug.user
