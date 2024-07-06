@@ -181,7 +181,7 @@ void platform_init(void)
 	rcc_periph_clock_enable(RCC_CRC);
 	/*
 		toggle the PWR_BR and SRST pins
-		
+
 		this is what the native BMP does, don't really know why
 	*/
 	gpio_port_write(GPIOA, 0xa102);
@@ -192,9 +192,9 @@ void platform_init(void)
 
 	/*
 	 * Set up USB Pins and alternate function
-	 * 
+	 *
 	 * Setup REN output
-	 * 
+	 *
 	 */
 	gpio_clear(USB_PU_PORT, USB_PU_PIN);
 	gpio_mode_setup(USB_PU_PORT, GPIO_MODE_INPUT, GPIO_PUPD_NONE, USB_PU_PIN);
@@ -237,9 +237,9 @@ void platform_init(void)
 	// setup the iRSTR pin
 	//
 	gpio_mode_setup(NRST_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_PULLUP, NRST_PIN);
-	/* 
+	/*
 	 * Enable internal pull-up on PWR_BR so that we don't drive
-	 * TPWR locally or inadvertently supply power to the target. 
+	 * TPWR locally or inadvertently supply power to the target.
 	 */
 	gpio_set(PWR_BR_PORT, PWR_BR_PIN);
 	gpio_mode_setup(PWR_BR_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, PWR_BR_PIN);
@@ -316,9 +316,33 @@ bool platform_nrst_get_val(void)
 	return false;
 }
 
+#define voltagePerBit 0.000806F
+
+//
+// This char array receives both the target and battery voltages
+//
+static char voltages[64] = {0};
+
 const char *platform_target_voltage(void)
 {
-	return NULL;
+	float targetVoltage = inputVoltages[CTXLINK_ADC_TARGET] * voltagePerBit * 2.0F;
+	//
+	// Since we are only interested in a single digit after the decimal point,
+	// multiple the calculated value by 10. This allows a cast to uint32_t without
+	// loosing the digit after the DP.
+	//
+	// Later the resulting value may be divided by 10 to get the lefthand side
+	// of the voltage, and modulo 10 to get the fractional part. Making
+	// formatting to a string easier.
+	//
+	targetVoltage *= 10.0F;
+	char ret[] = "0.0V";
+	uint32_t tv = (uint32_t)targetVoltage;
+	ret[0] = '0' + tv / 10U;
+	ret[2] = '0' + tv % 10U;
+	strcpy(&voltages[0], &ret[0]);
+	strcat(&voltages[0], platform_battery_voltage());
+	return voltages;
 }
 
 #pragma GCC diagnostic push
@@ -406,13 +430,11 @@ volatile uint32_t batteryVoltage = 0;
 bool fLastState = true;
 bool fBatteryPresent = false;
 
-#define voltagePerBit 0.000806
-
 const char *platform_battery_voltage(void)
 {
 	static char ret[64] = {0};
 	if (fBatteryPresent == true) {
-		double batteryVoltageAsDouble = (batteryVoltage * voltagePerBit) * 2;
+		double batteryVoltageAsDouble = (batteryVoltage * voltagePerBit) * 2.0F;
 		sprintf(&ret[0], "\n      Battery : %.3f", batteryVoltageAsDouble);
 		//
 		// Let's truncate to 2 places
