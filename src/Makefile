@@ -96,7 +96,7 @@ SRC =              \
 	target_flash.c \
 	target_probe.c
 
-ifneq ($(PROBE_HOST), ctxLink)
+ifneq ($(PROBE_HOST), ctxlink)
 	SRC += gdb_if.c
 endif
 
