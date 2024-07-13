@@ -42,7 +42,9 @@ endif
 
 # TODO: add proper traceswoasync support
 # This is a temporary hack to allow selecting traceswoasync vs traceswo implementation
-fixme_platform_stm32_traceswo = declare_dependency(sources: files('traceswo.c'))
+if probe != 'ctxlink'
+	fixme_platform_stm32_traceswo = declare_dependency(sources: files('traceswo.c'))
+endif
 fixme_platform_stm32_traceswoasync = declare_dependency(sources: files('traceswoasync.c'))
 fixme_platform_stm32f7_traceswoasync = declare_dependency(sources: files('traceswoasync_f723.c'))
 
