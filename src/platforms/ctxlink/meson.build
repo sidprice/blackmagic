@@ -40,7 +40,7 @@ probe_ctxlink_sources = files(
 	'ctxlink_gdb_if.c',
 	'WiFi_Server.c',
 	'ctxLink_mode_led.c',
-	'ctxLink_traceswo.c'
+	'winc1500_driver_stub_api.c'
 )
 
 bmd_bootloader = get_option('bmd_bootloader')
@@ -66,7 +66,7 @@ probe_host = declare_dependency(
 	sources: probe_ctxlink_sources,
 	compile_args: probe_ctxlink_args,
 	link_args: probe_ctxlink_commonn_link_args + probe_ctxlink_link_args,
-	dependencies: [platform_common, platform_stm32f4, fixme_platform_stm32_traceswo],
+	dependencies: [platform_common, platform_stm32f4, winc1500],
 )
 
 summary(
