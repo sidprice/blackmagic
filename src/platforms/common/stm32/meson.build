@@ -31,11 +31,14 @@
 platform_stm32_includes = include_directories('.')
 
 platform_stm32_sources = files(
-	'gdb_if.c',
 	'serialno.c',
 	'timing_stm32.c',
 	'traceswodecode.c',
 )
+
+if probe != 'ctxlink'
+	platform_stm32_sources += files('gdb_if.c')
+endif
 
 # TODO: add proper traceswoasync support
 # This is a temporary hack to allow selecting traceswoasync vs traceswo implementation
