@@ -49,6 +49,32 @@
 static uint32_t input_voltages[2] = {0};
 static uint8_t adc_channels[] = {CTXLINK_BATTERY_INPUT, CTXLINK_TARGET_VOLTAGE_INPUT}; /// ADC channels used by ctxLink
 
+//
+// This array receives both the target and battery voltages
+//
+static char voltages[64] = {0};
+
+//
+// With a 3V3 reference voltage and using a 12 bit ADC each bit represents 0.8mV
+//  Note the battery voltage is divided by 2 with resistor divider
+//
+// No battery voltage 1 == 2.0v or a count of 1250
+// No battery voltage 2 == 4.268v or a count of 2668
+// Battery present (report voltage) < 4.268v or a count of 2667
+// Low batter voltage == 3.6v or a count of 2250
+//
+#define uiBattVoltage_1 1250
+#define uiBattVoltage_2 2668
+#define uiLowBattery    2250
+
+volatile uint32_t retVal;
+volatile uint32_t batteryVoltage = 0;
+
+bool fLastState = true;
+bool battery_present = false;
+
+#define VOLTS_PER_BIT 0.000806F
+
 typedef void (*irq_function_t)(void);
 
 static void adc_init(void)
@@ -211,9 +237,68 @@ bool platform_nrst_get_val(void)
 	return false;
 }
 
+const char *platform_battery_voltage(void)
+{
+	static char ret[64] = {0};
+	if (battery_present == true) {
+		//
+		// Apply scaling to the input voltage. The input has a divide by 2 and
+		// to shift the value to a range that is easy to display, it is further
+		// miltiplied by 10
+		//
+		float battery_voltage_as_float = (batteryVoltage * VOLTS_PER_BIT) * 20.0F;
+		uint32_t battery_voltage_as_unsigned = (uint32_t)battery_voltage_as_float;
+		//
+		// Let's truncate to 2 places
+		//
+		ret[21] = 'V';
+		ret[22] = '\n';
+		ret[23] = 0x00;
+	} else {
+		sprintf(&ret[0], "\n      Battery : Not present");
+	}
+	return ret;
+}
+
+bool platform_check_battery_voltage(void)
+{
+	bool fResult;
+	platform_adc_read();
+	batteryVoltage = input_voltages[CTXLINK_ADC_BATTERY];
+	fResult = fLastState;
+	//
+	// Is battery connected?
+	//
+	if ((batteryVoltage <= uiBattVoltage_1) || (batteryVoltage >= uiBattVoltage_2)) {
+		battery_present = false;
+		fLastState = fResult = true;
+	} else {
+		battery_present = true;
+		//
+		// Is the voltage good?
+		//
+		if (batteryVoltage <= uiLowBattery) {
+			fLastState = fResult = false;
+		} else {
+			fLastState = fResult = true;
+		}
+	}
+	return fResult;
+}
+
 const char *platform_target_voltage(void)
 {
-	return NULL;
+	double targetVoltage = input_voltages[CTXLINK_ADC_TARGET] * VOLTS_PER_BIT;
+	char ret[64];
+	sprintf(&ret[0], "%.3f", targetVoltage * 2);
+	//
+	// Let's truncate to 2 places
+	//
+	ret[4] = 'V';
+	ret[5] = 0x00;
+	strcpy(&voltages[0], &ret[0]);
+	strcat(&voltages[0], platform_battery_voltage());
+	return voltages;
 }
 
 #pragma GCC diagnostic push
