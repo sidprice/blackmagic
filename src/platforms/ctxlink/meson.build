@@ -38,7 +38,9 @@ probe_ctxlink_dfu_serial_length = bmd_bootloader ? '9' : '13'
 
 probe_ctxlink_args = [
 	f'-DDFU_SERIAL_LENGTH=@probe_ctxlink_dfu_serial_length@',
+	'-DCTXLINK=1'
 ]
+
 
 probe_ctxlink_commonn_link_args = [
 	'-L@0@'.format(meson.current_source_dir()),
