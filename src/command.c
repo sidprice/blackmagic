@@ -67,6 +67,9 @@ static bool cmd_tdi_low_reset(target_s *t, int argc, const char **argv);
 #ifdef PLATFORM_HAS_POWER_SWITCH
 static bool cmd_target_power(target_s *t, int argc, const char **argv);
 #endif
+#ifdef CTXLINK
+static bool cmd_battery(target_s *t, int argc, const char **argv);
+#endif
 #ifdef PLATFORM_HAS_TRACESWO
 static bool cmd_traceswo(target_s *t, int argc, const char **argv);
 #endif
@@ -102,6 +105,9 @@ const command_s cmd_list[] = {
 		"Pulse nRST with TDI set low to attempt to wake certain targets up (eg LPC82x)"},
 #ifdef PLATFORM_HAS_POWER_SWITCH
 	{"tpwr", cmd_target_power, "Supplies power to the target: [enable|disable]"},
+#endif
+#ifdef CTXLINK
+	{"batt", cmd_battery, "Displays the battery voltage"},
 #endif
 #ifdef ENABLE_RTT
 	{"rtt", cmd_rtt,
@@ -518,6 +524,17 @@ static const char *on_or_off(const bool value)
 {
 	return value ? "on" : "off";
 }
+
+#ifdef CTXLINK
+static bool cmd_battery(target_s *t, int argc, const char **argv)
+{
+	(void)t;
+	(void)argc;
+	(void)argv;
+	// gdb_outf("Battery voltage: %s\n", );
+	return true;
+}
+#endif
 
 static bool cmd_rtt(target_s *t, int argc, const char **argv)
 {
