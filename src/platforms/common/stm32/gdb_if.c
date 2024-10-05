@@ -31,6 +31,10 @@
 #include "usb_serial.h"
 #include "gdb_if.h"
 
+#ifdef PLATFORM_HAS_WIFI
+#include "ctxlink_gdb_if.h"
+#endif
+
 static uint32_t count_out;
 static uint32_t count_in;
 static uint32_t out_ptr;
@@ -43,6 +47,10 @@ static char double_buffer_out[CDCACM_PACKET_SIZE];
 
 void gdb_if_putchar(const char c, const int flush)
 {
+#ifdef PLATFORM_HAS_WIFI
+	if (gdb_if_wifi_putchar(c, flush))
+		return ;
+#endif
 	buffer_in[count_in++] = c;
 	if (flush || count_in == CDCACM_PACKET_SIZE) {
 		/* Refuse to send if USB isn't configured, and
@@ -111,6 +119,11 @@ static void gdb_if_update_buf(void)
 
 char gdb_if_getchar(void)
 {
+#ifdef PLATFORM_HAS_WIFI
+	char ch = gdb_if_wifi_getchar();
+	if (ch != 0xff)
+		return ch;
+#endif
 	while (out_ptr >= count_out) {
 		/*
 		 * Detach if port closed
@@ -131,6 +144,11 @@ char gdb_if_getchar(void)
 
 char gdb_if_getchar_to(const uint32_t timeout)
 {
+#ifdef PLATFORM_HAS_WIFI
+	char ch = gdb_if_wifi_getchar();
+	if (ch != 0xff)
+		return ch;
+#endif
 	platform_timeout_s receive_timeout;
 	platform_timeout_set(&receive_timeout, timeout);
 
