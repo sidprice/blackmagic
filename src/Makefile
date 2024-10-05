@@ -49,6 +49,7 @@ SRC =              \
 	crc32.c        \
 	efm32.c        \
 	exception.c    \
+	gdb_if.c       \
 	gdb_main.c     \
 	gdb_packet.c   \
 	gdb_reg.c      \
@@ -101,10 +102,6 @@ SRC =              \
 	target.c       \
 	target_flash.c \
 	target_probe.c
-
-ifneq ($(PROBE_HOST), ctxlink)
-	SRC += gdb_if.c
-endif
 
 # Check if the old name for the SWO encoding setting has been used
 ifdef TRACESWO_PROTOCOL
