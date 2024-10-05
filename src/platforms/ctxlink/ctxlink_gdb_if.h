@@ -20,33 +20,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/*
- * This file implements a transparent channel over which the GDB Remote
- * Serial Debugging protocol is implemented. This implementation for STM32
- * uses the USB CDC-ACM device bulk endpoints to implement the channel.
- */
+#ifndef CTXLINK_GDB_IF_H
+#define CTXLINK_GDB_IF_H
 
-#include <libopencmsis/core_cm3.h>
-
-#include "general.h"
-#include "platform.h"
-#include "usb_serial.h"
-#include "gdb_if.h"
-#include "WiFi_Server.h"
-
-bool gdb_if_wifi_putchar(char ch, int flush)
-{
-	if (is_gdb_client_connected() == true) {
-		wifi_gdb_putchar(ch, flush);
-		return true ;
-	}
-	return false ;
-}
-
-char gdb_if_wifi_getchar(void)
-{
-	platform_tasks();
-	if (is_gdb_client_connected() == true)
-		return (char)wifi_get_next();
-	return (char)0xff;
-}
+char gdb_if_wifi_getchar(void);
+bool gdb_if_wifi_putchar(char ch, int flush) ;
+#endif // CTXLINK_GDB_IF_H
