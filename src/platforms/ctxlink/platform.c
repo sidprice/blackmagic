@@ -79,10 +79,21 @@ static uint8_t adc_channels[] = {CTXLINK_BATTERY_INPUT, CTXLINK_TARGET_VOLTAGE_I
 
 typedef void (*irq_function_t)(void);
 
+static uint32_t previous_systick ;
+
 void debug_print(const char *format, ...)
 {
+	uint32_t delta_systick;
+	uint32_t current_systick = platform_time_ms()  ;
+
+	if ( previous_systick == 0)
+		delta_systick = 0 ;
+	else
+		delta_systick = current_systick - previous_systick ;
+	previous_systick = current_systick ;
+
 	/* Format in the timestamp for this event */
-	printf("%" PRIu32 ".%" PRIu32 " ", platform_time_ms(), systick_get_value());
+	printf("%" PRIu32 ".%" PRIu32 " ", delta_systick , systick_get_value());
 
 	/* Now format out the actual message that was intended */
 	va_list args;
