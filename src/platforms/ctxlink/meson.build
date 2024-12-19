@@ -45,6 +45,7 @@ probe_ctxlink_sources = files(
 
 probe_ctxlink_args = [
 	'-DDFU_SERIAL_LENGTH=13',
+	'-DCONFIG_PROBE=CTX_LINK',
 ]
 
 trace_protocol = get_option('trace_protocol')

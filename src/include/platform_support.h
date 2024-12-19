@@ -83,4 +83,8 @@ uint8_t platform_spi_xfer(spi_bus_e bus, uint8_t value);
 const char *platform_ident(void);
 #endif
 
+#ifdef CTX_LINK
+#define PLATFORM_PRINTF debug_print
+void debug_print(const char *format, ...) __attribute__((format(printf, 1, 2)));
+#endif
 #endif /* INCLUDE_PLATFORM_SUPPORT_H */

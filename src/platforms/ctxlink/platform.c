@@ -79,6 +79,18 @@ static uint8_t adc_channels[] = {CTXLINK_BATTERY_INPUT, CTXLINK_TARGET_VOLTAGE_I
 
 typedef void (*irq_function_t)(void);
 
+void debug_print(const char *format, ...)
+{
+	/* Format in the timestamp for this event */
+	printf("%" PRIu32 ".%" PRIu32 " ", platform_time_ms(), systick_get_value());
+
+	/* Now format out the actual message that was intended */
+	va_list args;
+	va_start(args, format);
+	vprintf(format, args);
+	va_end(args);
+}
+
 static void adc_init(void)
 {
 	rcc_periph_clock_enable(RCC_ADC1);
