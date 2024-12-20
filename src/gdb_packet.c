@@ -439,10 +439,10 @@ void gdb_out(const char *const str)
 	/**
      * Program console output packet
      * See https://sourceware.org/gdb/current/onlinedocs/gdb.html/Stop-Reply-Packets.html#Stop-Reply-Packets
-     * 
+     *
      * Format: ‘O XX…’
      * ‘XX…’ is hex encoding of ASCII data, to be written as the program’s console output.
-     * 
+     *
      * Can happen at any time while the program is running and the debugger should continue to wait for ‘W’, ‘T’, etc.
      * This reply is not permitted in non-stop mode.
      */
@@ -455,7 +455,7 @@ void gdb_voutf(const char *const fmt, va_list ap)
 	 * We could technically do the formatting and transformation in a single buffer reducing stack usage
 	 * But it is a bit more complex and likely slower, we would need to spread the characters out such
 	 * that each occupies two bytes, and then we could hex them in place
-	 * 
+	 *
 	 * If this stack usage proves to be a problem, we can revisit this
 	 */
 	char str_scratch[GDB_OUT_PACKET_MAX_SIZE + 1U];
