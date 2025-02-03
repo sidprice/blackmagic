@@ -42,13 +42,18 @@ probe_ctxlink_includes = include_directories(
 probe_ctxlink_sources = files(
 	'platform.c',
 	'ctxlink_gdb_if.c',
-	'ctxLink_mode_led.c'
+	'ctxLink_mode_led.c',
+	'wifi_hardware.c'
 )
 
 if ublox_wifi == false
 	probe_ctxlink_sources += files(
 		'winc1500_driver_stub_api.c',
 		'winc1500_server.c'
+	)
+else
+	probe_ctxlink_sources += files(
+		'ublox_server.c'
 	)
 endif
 
