@@ -38,9 +38,13 @@
 
 #include "platform.h"
 
+#include "sc16is741a.h"
+
 void app_initialize(void)
 {
 	wifi_hardware_init();
+	sc16is741a_reset();
+	sc16is741a_init(WINC1500_SPI_CHANNEL, WINC1500_PORT, WINC1500_SPI_NCS);
 }
 
 void app_task(void)

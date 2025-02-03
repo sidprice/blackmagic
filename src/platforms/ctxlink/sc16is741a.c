@@ -57,13 +57,11 @@ static void control_cs(bool state)
 */
 static void write_byte(uint8_t data)
 {
-	spi_write(spi_interface, data);
+	spi_send(spi_interface, data);
 }
 
 /*
     Read a byte from the SPI bus
-
-    This function assumes the chip select for the SPI device has been asserted
 */
 uint8_t read_byte(uint8_t addr)
 {
@@ -72,6 +70,8 @@ uint8_t read_byte(uint8_t addr)
 	control_cs(true);                  // select the SPI device
 	write_byte(read_register);         // Send the read command
 	uint8_t data = spi_read(spi_interface);
+	write_byte(0); // Send the read command
+	data = spi_read(spi_interface);
 	control_cs(false);
 	return data;
 }
@@ -151,6 +151,11 @@ void sc16is741a_disable_interrupts(uint8_t interrupts)
 void sc16is741a_reset(void)
 {
 	gpio_clear(WINC1500_RESET_PORT, WINC1500_RESET);
-	platform_delay(1) ;
+	platform_delay(1);
 	gpio_set(WINC1500_RESET_PORT, WINC1500_RESET);
+}
+
+// Read TX FIFO Level
+uint8_t sc16is741a_tx_fifo_level(void)
+{
 }
