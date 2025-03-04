@@ -28,8 +28,12 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-subproject('winc1500')
-winc1500 = dependency('winc1500')
+ublox_wifi = get_option('ctxlink_ublox')
+
+if ublox_wifi == false
+	subproject('winc1500')
+	winc1500 = dependency('winc1500')
+endif
 
 probe_ctxlink_includes = include_directories(
 	'.'
@@ -38,10 +42,15 @@ probe_ctxlink_includes = include_directories(
 probe_ctxlink_sources = files(
 	'platform.c',
 	'ctxlink_gdb_if.c',
-	'WiFi_Server.c',
-	'ctxLink_mode_led.c',
-	'winc1500_driver_stub_api.c'
+	'ctxLink_mode_led.c'
 )
+
+if ublox_wifi == false
+	probe_ctxlink_sources += files(
+		'winc1500_driver_stub_api.c',
+		'WiFi_Server.c'
+	)
+endif
 
 probe_ctxlink_args = [
 	'-DDFU_SERIAL_LENGTH=13',
@@ -57,6 +66,9 @@ if trace_protocol in ['2', '3']
 	probe_ctxlink_dependencies += platform_stm32_swo_uart
 endif
 
+if ublox_wifi == false
+	probe_ctxlink_dependencies += winc1500
+endif
 probe_ctxlink_commonn_link_args = [
 	'-L@0@'.format(meson.current_source_dir()),
 	'-T@0@'.format('ctxlink.ld'),
@@ -69,7 +81,7 @@ probe_host = declare_dependency(
 	sources: probe_ctxlink_sources,
 	compile_args: probe_ctxlink_args,
 	link_args: probe_ctxlink_commonn_link_args + probe_ctxlink_link_args,
-	dependencies: [platform_common, platform_stm32f4, probe_ctxlink_dependencies, winc1500],
+	dependencies: [platform_common, platform_stm32f4, probe_ctxlink_dependencies],
 )
 
 summary(
