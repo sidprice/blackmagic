@@ -45,6 +45,12 @@ void wifi_hardware_init(void)
 	//
 	rcc_periph_clock_enable(WINC1500_RCC_SPI);
 	//
+	// Negate all outputs to WINC1500
+	//
+	gpio_set(WINC1500_RESET_PORT, WINC1500_RESET);
+	gpio_set(WINC1500_PORT, WINC1500_SPI_NCS);
+	gpio_clear(WINC1500_CHIP_EN_PORT, WINC1500_CHIP_EN);
+	//
 	// Set up the control outputs for the WINC1500
 	//
 	//		RESET output
@@ -59,16 +65,6 @@ void wifi_hardware_init(void)
 	//
 	gpio_mode_setup(WINC1500_CHIP_EN_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, WINC1500_CHIP_EN);
 	//
-	// Negate all outputs to WINC1500
-	//
-	gpio_set(WINC1500_RESET_PORT, WINC1500_RESET);
-	gpio_set(WINC1500_PORT, WINC1500_SPI_NCS);
-	//
-	// Rev 1.4 PCB does not use the WAKE input of the WINC1500
-	//
-	//gpio_set(WINC1500_WAKE_PORT, WINC1500_WAKE);
-	gpio_clear(WINC1500_CHIP_EN_PORT, WINC1500_CHIP_EN);
-	//
 	// Need to make the irq pin an external interrupt on falling edge
 	//
 	//	First enable the SYSCFG clock
@@ -82,8 +78,13 @@ void wifi_hardware_init(void)
 	//
 	// Set the port pins of the SPI channel to high-speed I/O
 	//
+#ifndef CTXLINK_UBLOX_WIFI
 	gpio_set_output_options(WINC1500_SPI_DATA_PORT, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ,
-		WINC1500_SPI_CLK | WINC1500_SPI_MISO | WINC1500_SPI_MOSI);
+		WINC1500_SPI_CLK | WINC1500_SPI_MISO | WINC1500_SPI_MOSI | WINC1500_RESET);
+#else
+	gpio_set_output_options(WINC1500_SPI_DATA_PORT, GPIO_OTYPE_PP, GPIO_OSPEED_100MHZ,
+		WINC1500_SPI_CLK | WINC1500_SPI_MISO | WINC1500_SPI_MOSI | WINC1500_RESET);
+#endif
 	//
 	// Enable alternate function for SPI2_CLK PB10 AF5
 	//
@@ -97,8 +98,15 @@ void wifi_hardware_init(void)
 	//
 	// I think this is Mode_0, 8 bit data, MSB first, the clock rate is 42MHz with core of 84MHz
 	//
+#ifndef CTXLINK_UBLOX_WIFI
+	// WINC1500 module has 21MHz SPI CLK
 	spi_init_master(WINC1500_SPI_CHANNEL, SPI_CR1_BAUDRATE_FPCLK_DIV_2, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
 		SPI_CR1_CPHA_CLK_TRANSITION_1, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
+#else
+	// uBlox Wi-Fi has 2.62MHz SPI CLK, could be up to 4MHz, dividers don't work for that
+	spi_init_master(WINC1500_SPI_CHANNEL, SPI_CR1_BAUDRATE_FPCLK_DIV_16, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
+		SPI_CR1_CPHA_CLK_TRANSITION_1, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
+#endif
 	//
 	// Set NSS to software management and also ensure NSS is high, if not written high no data will be sent
 	//
