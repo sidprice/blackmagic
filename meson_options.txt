@@ -148,3 +148,9 @@ option(
 	value: false,
 	description: 'Enable firmware-side protocol acceleration of RISC-V Debug'
 )
+option(
+	'ctxlink_ublox',
+	type: 'boolean',
+	value: false,
+	description: 'Select the Wi-Fi module used by ctxLink, false == WINC1500, true == uBlox NINA-W156',
+)
