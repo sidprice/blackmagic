@@ -68,6 +68,8 @@ endif
 
 if ublox_wifi == false
 	probe_ctxlink_dependencies += winc1500
+else
+	probe_ctxlink_args += '-DCTXLINK_UBLOX_WIFI'
 endif
 probe_ctxlink_commonn_link_args = [
 	'-L@0@'.format(meson.current_source_dir()),
