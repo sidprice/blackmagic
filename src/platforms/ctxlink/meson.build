@@ -48,7 +48,7 @@ probe_ctxlink_sources = files(
 if ublox_wifi == false
 	probe_ctxlink_sources += files(
 		'winc1500_driver_stub_api.c',
-		'WiFi_Server.c'
+		'winc1500_server.c'
 	)
 endif
 
