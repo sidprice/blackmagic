@@ -74,16 +74,18 @@ void wifi_hardware_init(void)
 	gpio_mode_setup(WINC1500_PORT, GPIO_MODE_INPUT, GPIO_PUPD_NONE, WINC1500_IRQ); // Input signal with pulldown
 
 	exti_select_source(WINC1500_IRQ, WINC1500_PORT);
-	exti_set_trigger(WINC1500_IRQ, EXTI_TRIGGER_FALLING);
 	//
 	// Set the port pins of the SPI channel to high-speed I/O
 	//
 #ifndef CTXLINK_UBLOX_WIFI
+	exti_set_trigger(WINC1500_IRQ, EXTI_TRIGGER_FALLING);
 	gpio_set_output_options(WINC1500_SPI_DATA_PORT, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ,
 		WINC1500_SPI_CLK | WINC1500_SPI_MISO | WINC1500_SPI_MOSI | WINC1500_RESET);
 #else
-	gpio_set_output_options(WINC1500_SPI_DATA_PORT, GPIO_OTYPE_PP, GPIO_OSPEED_100MHZ,
-		WINC1500_SPI_CLK | WINC1500_SPI_MISO | WINC1500_SPI_MOSI | WINC1500_RESET);
+	exti_set_trigger(WINC1500_IRQ, EXTI_TRIGGER_RISING);
+// #else
+// 	gpio_set_output_options(WINC1500_SPI_DATA_PORT, GPIO_OTYPE_PP, GPIO_OSPEED_100MHZ,
+// 		WINC1500_SPI_CLK | WINC1500_SPI_MISO | WINC1500_SPI_MOSI | WINC1500_RESET);
 #endif
 	//
 	// Enable alternate function for SPI2_CLK PB10 AF5

@@ -38,25 +38,33 @@
 
 #include "platform.h"
 
-static _Atomic bool wifi_awake = false;
+static _Atomic bool data_ready = false;
+static _Atomic bool ublox_sync = true;
 
-/*
-	The uBlox module has initialized the SPI interface when
-	MISO is low, so include that in the test for data ready
- */
-void ublox_wait_for_drdy_and_miso(void)
+bool ublox_read_packet(uint8_t *buffer, uint32_t length);
+
+static inline void short_delay(void)
 {
-	while (true) {
-		int drdy = gpio_get(WINC1500_PORT, WINC1500_IRQ);
-		int miso = gpio_get(WINC1500_SPI_DATA_PORT, WINC1500_SPI_MISO);
-		if (miso == 0) {
-			if (drdy == 1)
-				break;
-		}
-		platform_delay(1);
+	for (volatile int i = 0; i < 500; i++) {
+		__asm__("nop");
 	}
 }
 
+/*
+	EXTI9 is the DRDY signal fro the uBlox module.
+	
+	On power up, this input toggles at a rate of about 5Hz. This continues
+	until the host sends at least 8 clock cycles. This indicates the host
+	wishes to use SPI for the AT Command protocol. Once SPI is
+	enabled, the module does not accept UART commands.
+	
+	Successful syncing with the SPI peripheral is indicated when the host
+	reads "+STARTUP\r\n" from the module.
+	
+	At this time EXTI9 is temporarily disabled. It is reenabled when
+	the host is ready to proceed
+	
+	*/
 void ublox_wait_for_drdy(void)
 {
 	while (gpio_get(WINC1500_PORT, WINC1500_IRQ) == 0) {
@@ -70,6 +78,8 @@ void ublox_wait_for_drdy(void)
 	}
 }
 
+static uint8_t input_packet[32] = {0};
+
 void exti9_5_isr(void)
 {
 	//
@@ -78,13 +88,25 @@ void exti9_5_isr(void)
 	if (exti_get_flag_status(EXTI9) == EXTI9) {
 		// Reset the interrupt state
 		exti_reset_request(EXTI9);
-		//
-		// The uBlox module is ready to initialize SPI
-		// disable this interrupt
-		//
-		exti_disable_request(WINC1500_IRQ);
-		nvic_disable_irq(NVIC_EXTI9_5_IRQ);
-		__atomic_store_n(&wifi_awake, true, __ATOMIC_RELAXED);
+		if (ublox_sync == true) {
+			ublox_sync = false;
+			//
+			// The uBlox module is ready to initialize SPI
+			// disable this interrupt
+			//
+			exti_disable_request(WINC1500_IRQ);
+			nvic_disable_irq(NVIC_EXTI9_5_IRQ);
+			__atomic_store_n(&data_ready, true, __ATOMIC_RELAXED);
+		} else {
+			/*
+				Data is ready, read the Packet from the uBlox module
+			*/
+			if (ublox_read_packet(input_packet, sizeof(input_packet))) {
+				exti_disable_request(WINC1500_IRQ);
+				nvic_disable_irq(NVIC_EXTI9_5_IRQ);
+				__atomic_store_n(&data_ready, true, __ATOMIC_RELAXED);
+			}
+		}
 	}
 }
 
@@ -96,28 +118,12 @@ void exti9_5_isr(void)
 		Length byte 2: LSB of the length
 		Payload: The actual data
 */
-bool ublox_read_packet(uint8_t *buffer, uint32_t length, bool first_contact)
+bool ublox_read_packet(uint8_t *buffer, uint32_t length)
 {
 	(void)length;
 	uint8_t *buffer_start = buffer;
 	uint16_t payload_size;
-	if (first_contact == true) {
-		/*
-			Wait for the DRDY signal to go high
-		*/
-		ublox_wait_for_drdy();
-	} else {
-		/*
-			Wait for DRDY to go high and miso low 
-			
-			miso being low indicates the uBlox module has initialized the SPI interface
-		*/
-		ublox_wait_for_drdy_and_miso();
-	}
-	/*
-		Wait for the DRDY signal to go high
-	*/
-	ublox_wait_for_drdy();
+
 	/*
 		Asserting the chip select signals a packet read start
 	*/
@@ -132,7 +138,7 @@ bool ublox_read_packet(uint8_t *buffer, uint32_t length, bool first_contact)
 	*/
 	if (buffer_start[0] != 0xBA && buffer_start[1] != 0x15) {
 		/*
-			Invalid header, reset the chip select and return
+			Invalid header, negate CS
 		*/
 		gpio_set(WINC1500_PORT, WINC1500_SPI_NCS);
 		return false;
@@ -141,8 +147,13 @@ bool ublox_read_packet(uint8_t *buffer, uint32_t length, bool first_contact)
 		Now read the payload
 	*/
 	payload_size = (buffer_start[2] << 8) | buffer_start[3];
-	if (payload_size == 0)
+	if (payload_size == 0) {
+		/*
+			Invalid packet size, negate CS
+		*/
+		gpio_set(WINC1500_PORT, WINC1500_SPI_NCS);
 		return false;
+	}
 
 	for (uint32_t index = 0; index < payload_size; index++) {
 		*buffer = spi_xfer(WINC1500_SPI_CHANNEL, *buffer);
@@ -179,20 +190,13 @@ void ublox_spi_wakeup(void)
 	gpio_set(WINC1500_PORT, WINC1500_SPI_NCS);
 }
 
-static inline void short_delay(void)
-{
-	for (volatile int i = 0; i < 1000; i++) {
-		__asm__("nop");
-	}
-}
-
 void app_initialize(void)
 {
 	wifi_hardware_init();
 	//
 	// Hold here wi-fi module to wake up
 	//
-	while (__atomic_load_n(&wifi_awake, __ATOMIC_RELAXED) == false) {
+	while (__atomic_load_n(&data_ready, __ATOMIC_RELAXED) == false) {
 		platform_delay(1);
 	}
 
@@ -203,7 +207,7 @@ void app_initialize(void)
 	uint8_t input[32] = {0};
 
 	while (true) {
-		if (ublox_read_packet(input, 32, true)) {
+		if (ublox_read_packet(input, 32)) {
 			if (input[0] == 0xba && input[1] == 0x15) {
 				// This is a valid packet
 				break;
@@ -217,14 +221,25 @@ void app_initialize(void)
 	//
 	uint8_t output[32] = {0xba, 0x15, 0x00, 0x0c, 'A', 'T', 'S', '5', '?', '\r', '\n', 0xff, 0xff, 0xff, 0xff, 0xff};
 	ublox_write_packet(output, 16);
-	platform_delay(1);
-	memset(input, 0xff, 32);
-	while (ublox_read_packet(input, 32, true) == false)
-		platform_delay(1);
-	memset(input, 0xff, 32);
-	platform_delay(1);
-	while (ublox_read_packet(input, 32, true) == false)
-		platform_delay(1);
+	// short_delay();
+	//
+	// Wait for received data packet
+	//
+	//
+	// Enable data ready interrupt
+	//
+	__atomic_store_n(&data_ready, false, __ATOMIC_RELAXED);
+	exti_enable_request(WINC1500_IRQ);
+	nvic_enable_irq(NVIC_EXTI9_5_IRQ);
+	while (__atomic_load_n(&data_ready, __ATOMIC_RELAXED) == false) {
+		short_delay();
+	}
+
+	// do {
+	// 	memset(input, 0xff, 32);
+	// 	short_delay();
+	// } while (ublox_read_packet(input, 32) == false);
+
 	platform_delay(100);
 }
 
