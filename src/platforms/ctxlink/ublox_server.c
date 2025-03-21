@@ -277,6 +277,20 @@ void send_swo_trace_data(uint8_t *buffer, uint8_t length)
 	(void)length;
 }
 
+void wifi_connect(size_t argc, const char **argv, char *buffer, uint32_t size)
+{
+	(void)argc;
+	(void)argv;
+	(void)buffer;
+	(void)size;
+}
+
+void wifi_get_ip_address(char *buffer, uint32_t size)
+{
+	(void)buffer;
+	(void)size;
+}
+
 void wifi_gdb_putchar(uint8_t ch, bool flush)
 {
 	(void)ch;
@@ -302,4 +316,8 @@ uint8_t wifi_get_next_to(uint32_t timeout)
 {
 	(void)timeout;
 	return -1;
+}
+
+void app_task_wait_spin(void)
+{
 }
