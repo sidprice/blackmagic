@@ -38,9 +38,29 @@
 
 #include "platform.h"
 
+static _Atomic bool wifi_awake = false;
+
+void exti9_5_isr(void)
+{
+	//
+	// Is it EXTI9?
+	//
+	if (exti_get_flag_status(EXTI9) == EXTI9) {
+		// Reset the interrupt state
+		exti_reset_request(EXTI9);
+		__atomic_store_n(&wifi_awake, true, __ATOMIC_RELAXED);
+	}
+}
+
 void app_initialize(void)
 {
 	wifi_hardware_init();
+	//
+	// Hold here wi-fi module to wake up
+	//
+	while (__atomic_load_n(&wifi_awake, __ATOMIC_RELAXED) == false)
+		platform_delay(1);
+	platform_delay(100);
 }
 
 void app_task(void)
