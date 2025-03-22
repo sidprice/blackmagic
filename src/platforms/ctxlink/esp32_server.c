@@ -58,6 +58,16 @@ void app_initialize(void)
 	//
 	// Hold here wi-fi module to wake up
 	//
+
+	//
+	// The ESP32 seems to not bring up GPIO in a clean way and some "glitches"
+	// were observed on the ATTN input  when the ESP32 starts up.  This
+	// causes the interrupt to be triggered and the system to wake up early.
+	// So we need to wait for a while to make sure that the interrupt is not
+	// triggered by a glitch.
+	//
+	// Hence the "strange" loop here.
+	//
 	while (__atomic_load_n(&wifi_awake, __ATOMIC_RELAXED) == false)
 		platform_delay(1);
 	platform_delay(100);
