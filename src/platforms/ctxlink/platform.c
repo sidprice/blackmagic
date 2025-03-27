@@ -145,7 +145,9 @@ void wifi_init(void)
 	//
 	// Initialize the WiFi server app
 	//
+#ifndef CTXLINK_ESP32_WIFI
 	m2m_wifi_init();
+#endif
 	app_initialize();
 }
 
@@ -322,7 +324,9 @@ void platform_tasks(void)
 		startup = false;
 		platform_delay(1000);
 	}
-	m2m_wifi_task();   // WINC1500 tasks
+#ifndef CTXLINK_ESP32_WIFI
+	m2m_wifi_task(); // WINC1500 tasks
+#endif
 	gdb_tcp_server();  // Run the TCP sever state machine
 	data_tcp_server(); // Run the Uart/Debug TCP server
 }
