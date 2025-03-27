@@ -138,3 +138,31 @@ uint8_t wifi_get_next_to(uint32_t timeout)
 	(void)timeout;
 	return -1;
 }
+
+void app_task_wait_spin(void)
+{
+}
+
+//
+// Using the passed arguments, attempt to connect to a Wi-Fi AP
+//
+void wifi_connect(size_t argc, const char **argv, char *buffer, uint32_t size)
+{
+	(void)argc;
+	(void)argv;
+	(void)buffer;
+	(void)size;
+}
+
+//
+// Format the current connection data for display to user
+//
+//	SSID = 'name'
+//	RSSI = xx
+//	ip = xxx.xxx.xxx.xxx
+//
+void wifi_get_ip_address(char *buffer, uint32_t size)
+{
+	(void)buffer;
+	(void)size;
+}
