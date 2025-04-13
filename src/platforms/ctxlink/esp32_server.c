@@ -89,7 +89,7 @@ void esp32_transfer_packet(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length
 	//
 	// Wait for ESP32 ready
 	//
-	while (gpio_get(WINC1500_CHIP_EN_PORT, WINC1500_CHIP_EN) != 0)
+	while (gpio_get(WINC1500_RESET_PORT, WINC1500_RESET) != 0)
 		;
 	//
 	// Header size is 5 bytes.
@@ -160,13 +160,21 @@ void app_initialize(void)
 	platform_delay(100);
 	while (1) {
 		uint8_t buffer[] = {0xDE, 0xAD, 0x05, 0x00, 0x07, 'H', 'E', 'L', 'L', 'O', 0, 0};
-		uint8_t inputBuffer[32] = {0};
+		uint8_t second_buffer[1024] = {0};
+		uint8_t inputBuffer[1024] = {0};
 		// esp32_transfer_header_and_packet(buffer, inputBuffer, sizeof(buffer));
 		// platform_delay(100);
-		// while (gpio_get(WINC1500_PORT, WINC1500_IRQ) != 0)
-		// 	;
-		//		memset(buffer, 0, sizeof(buffer));
-		esp32_transfer_header_and_packet(buffer, inputBuffer, 12);
+		memset(second_buffer, 0, sizeof(second_buffer));
+		while (gpio_get(WINC1500_PORT, WINC1500_IRQ) != 0)
+			;
+		esp32_transfer_packet(buffer, inputBuffer, 12);
+		//
+		while (gpio_get(WINC1500_RESET_PORT, WINC1500_RESET) == 0)
+			;
+
+		for (size_t i = 0; i < 2000; i++)
+			;
+		esp32_transfer_header_and_packet(buffer, inputBuffer, sizeof(buffer));
 		platform_delay(100);
 	}
 }
