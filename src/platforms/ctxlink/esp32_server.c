@@ -52,13 +52,74 @@ void exti9_5_isr(void)
 	}
 }
 
+void esp32_transfer(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length)
+{
+	//
+	// Do the transfer
+	//
+	for (uint16_t i = 0; i < length; i++)
+		rxBuffer[i] = spi_xfer(WINC1500_SPI_CHANNEL, txBuffer[i]);
+}
+
+//
+// This function transfers a complete protocol packet
+//
+void esp32_transfer_header_and_packet(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length)
+{
+	gpio_clear(WINC1500_PORT, WINC1500_SPI_NCS);
+	//
+	// Wait for ESP32 ready
+	//
+	while (gpio_get(WINC1500_CHIP_EN_PORT, WINC1500_CHIP_EN) != 0)
+		;
+	esp32_transfer(txBuffer, rxBuffer, length);
+	gpio_set(WINC1500_PORT, WINC1500_SPI_NCS);
+}
+
+//
+//	This function first transfers the protocol header, it contains the byte count.
+//
+//	It then transfers the balance of the protocol packet.
+//
+//		TODO Add protocol defs to ctxLink
+void esp32_transfer_packet(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length)
+{
+	uint32_t byte_count;
+	gpio_clear(WINC1500_PORT, WINC1500_SPI_NCS);
+	//
+	// Wait for ESP32 ready
+	//
+	while (gpio_get(WINC1500_CHIP_EN_PORT, WINC1500_CHIP_EN) != 0)
+		;
+	//
+	// Header size is 5 bytes.
+	//
+	esp32_transfer(txBuffer, rxBuffer, 5);
+	//
+	// Byte count is in bytes 3 & 4
+	//
+	byte_count = (*(rxBuffer + 3) >> 8) & 0xff;
+	byte_count += *(rxBuffer + 4);
+	//
+	// Transfer the balance of the packet
+	//
+	esp32_transfer(txBuffer, rxBuffer + 5, byte_count);
+	gpio_set(WINC1500_PORT, WINC1500_SPI_NCS);
+}
+
+// uint8_t buffer[1024] = {0};
+// uint8_t inputBuffer[1024] = {0};
+
 void app_initialize(void)
 {
 	wifi_hardware_init();
 	//
 	// Hold here wi-fi module to wake up
 	//
+	while (gpio_get(WINC1500_CHIP_EN_PORT, WINC1500_CHIP_EN) != 0)
+		;
 
+#if 0
 	//
 	// The ESP32 seems to not bring up GPIO in a clean way and some "glitches"
 	// were observed on the ATTN input  when the ESP32 starts up.  This
@@ -68,9 +129,46 @@ void app_initialize(void)
 	//
 	// Hence the "strange" loop here.
 	//
-	while (__atomic_load_n(&wifi_awake, __ATOMIC_RELAXED) == false)
+	while (__atomic_load_n(&wifi_awake, __ATOMIC_RELAXED) == false) {
 		platform_delay(1);
+		//
+		// Check the ATTN input is still low before we continue
+		//
+		if (gpio_get(WINC1500_PORT, WINC1500_IRQ) == 0)
+			break;
+	}
+	//
+	// Send a greeting to test the ESP32 input
+	//
+	{
+		uint8_t buffer[] = {'H', 'e', 'l', 'l', 'o', '\n'};
+		uint8_t inputBuffer[32];
+		esp32_transfer(buffer, inputBuffer, sizeof(buffer));
+	}
+	// platform_delay(100);
+	while (gpio_get(WINC1500_PORT, WINC1500_IRQ))
+		;
+	while (!gpio_get(WINC1500_PORT, WINC1500_IRQ))
+		;
+
+	{
+		uint8_t buffer[] = {'H', 'E', 'L', 'L', 'O', '\n'};
+		uint8_t inputBuffer[32];
+		esp32_transfer(buffer, inputBuffer, sizeof(buffer));
+	}
+#endif
 	platform_delay(100);
+	while (1) {
+		uint8_t buffer[] = {0xDE, 0xAD, 0x05, 0x00, 0x07, 'H', 'E', 'L', 'L', 'O', 0, 0};
+		uint8_t inputBuffer[32] = {0};
+		// esp32_transfer_header_and_packet(buffer, inputBuffer, sizeof(buffer));
+		// platform_delay(100);
+		// while (gpio_get(WINC1500_PORT, WINC1500_IRQ) != 0)
+		// 	;
+		//		memset(buffer, 0, sizeof(buffer));
+		esp32_transfer_header_and_packet(buffer, inputBuffer, 12);
+		platform_delay(100);
+	}
 }
 
 void app_task(void)

@@ -60,10 +60,17 @@ void wifi_hardware_init(void)
 	//		Chip select output
 	//
 	gpio_mode_setup(WINC1500_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, WINC1500_SPI_NCS);
+#ifndef CTXLINK_ESP32_WIFI
 	//
 	//		CHIP_EN Output
 	//
 	gpio_mode_setup(WINC1500_CHIP_EN_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, WINC1500_CHIP_EN);
+#else
+	//
+	// The ENABLE pin is used as an input for ESP32 nREADY signal
+	//
+	gpio_mode_setup(WINC1500_CHIP_EN_PORT, GPIO_MODE_INPUT, GPIO_PUPD_PULLDOWN, WINC1500_CHIP_EN);
+#endif
 	//
 	// Need to make the irq pin an external interrupt on falling edge
 	//
@@ -105,7 +112,7 @@ void wifi_hardware_init(void)
 #else
 	// ESP32 SPI as peripheral has 10MHz max SPI CLK
 	spi_init_master(WINC1500_SPI_CHANNEL, SPI_CR1_BAUDRATE_FPCLK_DIV_4, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
-		SPI_CR1_CPHA_CLK_TRANSITION_1, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
+		SPI_CR1_CPHA_CLK_TRANSITION_2, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
 #endif
 	//
 	// Set NSS to software management and also ensure NSS is high, if not written high no data will be sent
