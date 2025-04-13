@@ -49,13 +49,25 @@ void wifi_hardware_init(void)
 	//
 	gpio_set(WINC1500_RESET_PORT, WINC1500_RESET);
 	gpio_set(WINC1500_PORT, WINC1500_SPI_NCS);
+#ifndef CTXLINK_ESP32_WIFI
 	gpio_clear(WINC1500_CHIP_EN_PORT, WINC1500_CHIP_EN);
+#else
+	gpio_set(WINC1500_CHIP_EN_PORT, WINC1500_CHIP_EN);	// Will be used as input later
+#endif
+
 	//
 	// Set up the control outputs for the WINC1500
 	//
 	//		RESET output
 	//
+#ifndef CTXLINK_ESP32_WIFI
 	gpio_mode_setup(WINC1500_RESET_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, WINC1500_RESET);
+#else
+	//
+	// GPIO is used as the nSPI_READY signal input
+	//
+	gpio_mode_setup(WINC1500_RESET_PORT, GPIO_MODE_INPUT, GPIO_PUPD_PULLUP, WINC1500_RESET);
+#endif
 	//
 	//		Chip select output
 	//

@@ -70,7 +70,7 @@ void esp32_transfer_header_and_packet(uint8_t *txBuffer, uint8_t *rxBuffer, uint
 	//
 	// Wait for ESP32 ready
 	//
-	while (gpio_get(WINC1500_CHIP_EN_PORT, WINC1500_CHIP_EN) != 0)
+	while (gpio_get(WINC1500_RESET_PORT, WINC1500_RESET) != 0)
 		;
 	esp32_transfer(txBuffer, rxBuffer, length);
 	gpio_set(WINC1500_PORT, WINC1500_SPI_NCS);
