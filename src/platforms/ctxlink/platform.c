@@ -44,7 +44,10 @@
 #include <libopencm3/usb/dwc/otg_fs.h>
 #include <libopencm3/stm32/f4/flash.h>
 #include "WiFi_Server.h"
+
+#ifndef CTXLINK_ESP32_WIFI
 #include "winc1500_api.h"
+#endif
 
 //
 // With a 3V3 reference voltage and using a 12 bit ADC each bit represents 0.8mV
