@@ -293,6 +293,7 @@ void app_initialize(void)
 	gpio_set(ESP32_nSPI_READY_PORT, ESP32_nSPI_READY);
 	gpio_set(ESP32_PORT, ESP32_SPI_NCS);
 	gpio_set(ESP32_nREADY_PORT, ESP32_nREADY); // Will be used as input later
+	gpio_set(ESP32_nRESET, ESP32_nRESET);
 
 	//
 	// Set up the control outputs for the ESP32
@@ -308,6 +309,11 @@ void app_initialize(void)
 	// ESP32 nREADY signal
 	//
 	gpio_mode_setup(ESP32_nREADY_PORT, GPIO_MODE_INPUT, GPIO_PUPD_PULLDOWN, ESP32_nREADY);
+	//
+	// ESP32 RESET output
+	//
+	gpio_mode_setup(ESP32_nRESET_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, ESP32_nRESET);
+	gpio_set(ESP32_nRESET_PORT, ESP32_nRESET); // Set nRESET high
 	//
 	// Need to make the nATTN pin an external interrupt on falling edge
 	//
@@ -342,19 +348,37 @@ void app_initialize(void)
 	//
 	spi_enable_software_slave_management(ESP32_SPI_CHANNEL);
 	spi_set_nss_high(ESP32_SPI_CHANNEL);
+
+	timer_init();
+	//
+	// Reset the ESP32
+	//
+	gpio_clear(ESP32_nRESET_PORT, ESP32_nRESET); // Set nRESET low
+	platform_delay(100);
+	gpio_set(ESP32_nRESET_PORT, ESP32_nRESET); // Set nRESET high
+	//
+	// Hold here wi-fi module to wake up
+	//
+	// The ESP32-S3 GPIO has a couple of level changes that occur
+	// as it comes out of reset. It is important that these changes
+	// on the nREADY and nATTN signals are not interpreted as signals.
+	// Wait here until the nREADY signal has stabilized and THEN
+	// enable the nATTN interupt.
+	//
+	// platform_delay(5000);
+	while (true) {
+		if (gpio_get(ESP32_nREADY_PORT, ESP32_nREADY) == 0) {
+			platform_delay(10);
+			if (gpio_get(ESP32_nREADY_PORT, ESP32_nREADY) == 0)
+				break; // ESP32 is up and running ... continue
+		}
+	}
 	//
 	// Enable the SPI channel
 	//
 	spi_enable(ESP32_SPI_CHANNEL);
 	exti_enable_request(ESP32_nATTN);
 	nvic_enable_irq(NVIC_EXTI9_5_IRQ);
-
-	timer_init();
-	//
-	// Hold here wi-fi module to wake up
-	//
-	while (gpio_get(ESP32_nREADY_PORT, ESP32_nREADY) != 0) // TODO Probably shouldn't do this without timeout
-		;
 }
 
 void app_task(void)
