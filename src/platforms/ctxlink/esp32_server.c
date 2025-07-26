@@ -42,6 +42,11 @@
 static bool g_wifi_connected = false;     ///< True if WiFi connected
 static bool gdb_client_connected = false; ///< True if client connected
 
+bool systick_tick = false;
+
+#define CHECK_BATTERY_PERIOD 100 // Time between battery checks expressed in ms
+static uint32_t check_battery_period = CHECK_BATTERY_PERIOD;
+
 /**
  * @brief Minimum time in us between nCS being negated and asserted again.
  */
@@ -129,6 +134,7 @@ void esp32_transfer_header_and_packet(uint8_t *txBuffer, uint8_t *rxBuffer, uint
 //		TODO Add protocol defs to ctxLink
 void esp32_transfer_packet(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length)
 {
+	(void)length;
 	uint32_t byte_count;
 	wait_minimum_cs_negated_time();
 	gpio_clear(ESP32_PORT, ESP32_SPI_NCS);
@@ -383,7 +389,18 @@ void app_initialize(void)
 
 void app_task(void)
 {
-	g_wifi_connected ? gpio_set(LED_PORT, LED_MODE) : gpio_clear(LED_PORT, LED_MODE);
+	//
+	if (systick_tick) {
+		systick_tick = false;
+		//
+		if (check_battery_period-- == 0) {
+			check_battery_period = CHECK_BATTERY_PERIOD;
+			if (platform_check_battery_voltage() == false)
+				gpio_toggle(LED_PORT, LED_MODE);
+			else
+				g_wifi_connected ? gpio_set(LED_PORT, LED_MODE) : gpio_clear(LED_PORT, LED_MODE);
+		}
+	}
 }
 
 //
