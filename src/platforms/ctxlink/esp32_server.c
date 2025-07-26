@@ -37,19 +37,21 @@
 
 #include "platform.h"
 
-static _Atomic bool wifi_awake = false;
+#include "protocol.h"
 
-void exti9_5_isr(void)
-{
-	//
-	// Is it EXTI9?
-	//
-	if (exti_get_flag_status(EXTI9) == EXTI9) {
-		// Reset the interrupt state
-		exti_reset_request(EXTI9);
-		__atomic_store_n(&wifi_awake, true, __ATOMIC_RELAXED);
-	}
-}
+#define INPUT_BUFFER_SIZE 2048
+
+static uint8_t input_buffer[INPUT_BUFFER_SIZE] = {0}; ///< The input buffer
+static uint32_t input_index = 0;                      ///< Zero-based index of the input
+static uint32_t output_index = 0;                     ///< Zero-based index of the output
+static _Atomic uint32_t buffer_count = 0;             ///< Number of buffers
+
+#define SEND_BUFFER_COUNT 4
+
+static uint8_t send_buffer[INPUT_BUFFER_SIZE] = {0}; ///< The send buffer
+static uint32_t send_count = 0;                      ///< Bytes to send and buffer input index
+
+static network_connection_info_s network_information;
 
 void esp32_transfer(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length)
 {
@@ -300,8 +302,15 @@ void send_swo_trace_data(uint8_t *buffer, uint8_t length)
 
 void wifi_gdb_putchar(uint8_t ch, bool flush)
 {
-	(void)ch;
-	(void)flush;
+	send_buffer[send_count++] = ch;
+	if (flush) {
+		//
+		// Package the GDB response
+		//
+		send_count = package_data(&send_buffer[0], send_count, PROTOCOL_PACKET_TYPE_TO_GDB, INPUT_BUFFER_SIZE);
+		esp32_transfer_header_and_packet(&send_buffer[0], input_buffer, send_count);
+		send_count = 0;
+	}
 }
 
 void wifi_gdb_flush(bool force)
@@ -323,13 +332,43 @@ int wifi_have_input(void)
 
 uint8_t wifi_get_next(void)
 {
-	return -1;
+	uint8_t result = 0x00;
+	uint32_t local_buffer_count;
+	//
+	// The buffer count is also managed in an ISR so protect this code
+	//
+	__atomic_load(&buffer_count, &local_buffer_count, __ATOMIC_RELAXED);
+	if (local_buffer_count != 0) {
+		result = input_buffer[output_index];
+		output_index = (output_index + 1) % INPUT_BUFFER_SIZE;
+		__atomic_fetch_sub(&buffer_count, 1, __ATOMIC_RELAXED);
+	}
+	return result;
 }
 
 uint8_t wifi_get_next_to(uint32_t timeout)
 {
-	(void)timeout;
-	return -1;
+	platform_timeout_s t;
+	uint8_t count = 0;
+	int input_count = 0;
+	platform_timeout_set(&t, timeout);
+
+	do {
+		input_count = wifi_have_input();
+		if (input_count != 0)
+			break;
+		//
+		// We must run the platform tasks or incomming data will not be transferred
+		// to the input buffers
+		//
+
+		platform_tasks();
+
+	} while (!platform_timeout_is_expired(&t));
+
+	if (input_count != 0)
+		count = wifi_get_next();
+	return count;
 }
 
 void app_task_wait_spin(void)
