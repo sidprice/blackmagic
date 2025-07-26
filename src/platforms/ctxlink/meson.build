@@ -33,6 +33,9 @@ esp32_wifi = get_option('ctxlink_esp32')
 if esp32_wifi == false
 	subproject('winc1500')
 	winc1500 = dependency('winc1500')
+else
+	subproject('ctxlink_spi_protocol')
+	esp32 = dependency('ctxlink_spi_protocol')
 endif
 
 probe_ctxlink_includes = include_directories('.')
@@ -62,6 +65,7 @@ endif
 if esp32_wifi == false
 	probe_ctxlink_dependencies += winc1500
 else
+	probe_ctxlink_dependencies += esp32
 	probe_ctxlink_args += '-DCTXLINK_ESP32_WIFI'
 endif
 probe_ctxlink_commonn_link_args = [
