@@ -344,4 +344,6 @@ bool platform_check_battery_voltage(void);
 bool platform_configure_uart(char *configuration_string);
 void platform_read_adc(void);
 const char *platform_wifi_state(int argc, const char **argv);
+void wifi_connect(size_t argc, const char **argv, char *buffer, uint32_t size);
+
 #endif /* PLATFORMS_CTXLINK_PLATFORM_H */
