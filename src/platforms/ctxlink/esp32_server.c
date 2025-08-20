@@ -318,8 +318,7 @@ void app_initialize(void)
 	//
 	// I think this is Mode_0, 8 bit data, MSB first, the clock rate is 42MHz with core of 84MHz
 	//
-	// ESP32 SPI as peripheral has 10MHz max SPI CLK
-	spi_init_master(ESP32_SPI_CHANNEL, SPI_CR1_BAUDRATE_FPCLK_DIV_4, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
+	spi_init_master(ESP32_SPI_CHANNEL, SPI_CR1_BAUDRATE_FPCLK_DIV_8, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
 		SPI_CR1_CPHA_CLK_TRANSITION_2, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
 	//
 	// Set NSS to software management and also ensure NSS is high, if not written high no data will be sent
