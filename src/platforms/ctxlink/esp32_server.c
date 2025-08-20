@@ -39,6 +39,11 @@
 
 #include "protocol.h"
 
+/**
+ * @brief Minimum time in us between nCS being negated and asserted again.
+ */
+#define MINIMUM_CS_NEGATED_TIME 200
+
 #define INPUT_BUFFER_SIZE 2048
 
 static uint8_t input_buffer[INPUT_BUFFER_SIZE] = {0}; ///< The input buffer
@@ -52,6 +57,40 @@ static uint8_t send_buffer[INPUT_BUFFER_SIZE] = {0}; ///< The send buffer
 static uint32_t send_count = 0;                      ///< Bytes to send and buffer input index
 
 static network_connection_info_s network_information;
+
+/**
+ * @brief Reset and start TIM2
+ * 
+ * This function is called when the SPI nCS output is negated.
+ */
+void timer2_start(void)
+{
+	// Reset and start the timer
+	timer_disable_counter(TIM2);
+	timer_set_counter(TIM2, 0);
+	timer_enable_counter(TIM2);
+}
+
+/**
+ * @brief Return the current value of TIM2
+ */
+
+uint32_t timer2_get_count(void)
+{
+	return timer_get_counter(TIM2);
+}
+
+/**
+ * @brief Wait for the minimum time between nCS negated and asserted
+ */
+
+void wait_minimum_cs_negated_time(void)
+{
+	uint32_t count = timer2_get_count();
+	while (count < MINIMUM_CS_NEGATED_TIME) {
+		count = timer2_get_count();
+	}
+}
 
 void esp32_transfer(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length)
 {
@@ -67,14 +106,16 @@ void esp32_transfer(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length)
 //
 void esp32_transfer_header_and_packet(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length)
 {
+	wait_minimum_cs_negated_time();
 	gpio_clear(ESP32_PORT, ESP32_SPI_NCS);
 	//
-	// Wait for ESP32 ready
+	// Wait for ESP32 SPI ready
 	//
 	while (gpio_get(ESP32_nSPI_READY_PORT, ESP32_nSPI_READY) != 0)
 		;
 	esp32_transfer(txBuffer, rxBuffer, length);
 	gpio_set(ESP32_PORT, ESP32_SPI_NCS);
+	timer2_start(); // Reset and start TIM2
 }
 
 //
@@ -86,6 +127,7 @@ void esp32_transfer_header_and_packet(uint8_t *txBuffer, uint8_t *rxBuffer, uint
 void esp32_transfer_packet(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length)
 {
 	uint32_t byte_count;
+	wait_minimum_cs_negated_time();
 	gpio_clear(ESP32_PORT, ESP32_SPI_NCS);
 	//
 	// Wait for ESP32 ready
@@ -106,6 +148,7 @@ void esp32_transfer_packet(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length
 	//
 	esp32_transfer(txBuffer, rxBuffer + 5, byte_count);
 	gpio_set(ESP32_PORT, ESP32_SPI_NCS);
+	timer2_start(); // Reset and start TIM2
 }
 
 /**
@@ -173,6 +216,52 @@ void exti9_5_isr(void)
 		}
 		}
 	}
+}
+
+/** @brief	Timer2 is used to set a minimum time between nCS being negated and asserted again.
+ * 
+ * This delay is required because the ESP32 SPI firmware/hardware requires a minimum time before
+ * a new transaction may be started. There appears to be no way to determine this delay to control
+ * nCS.
+ * 
+ * When CS is negated, the timer is reset and started.
+ * When CS is required to asserted, the SPI driver checks that the minimum time has elapsed, if
+ * not, it loops on the timer count until it exceeds the minimum delay.
+ */
+void timer_init(void)
+{
+	/* Enable TIM2 clock. */
+	rcc_periph_clock_enable(RCC_TIM2);
+
+	/* Reset TIM2 peripheral to defaults. */
+	rcc_periph_reset_pulse(RST_TIM2);
+
+	// Set timer mode:
+	// internal clock,
+	// edge-aligned
+	// up-counting
+	//one-pulse mode
+	timer_set_mode(TIM2, TIM_CR1_CKD_CK_INT, TIM_CR1_CMS_EDGE, TIM_CR1_DIR_UP);
+	// timer_one_shot_mode(TIM2);
+	timer_continuous_mode(TIM2);
+
+	/*
+	 * Please take note that the clock source for STM32 timers
+	 * might not be the raw APB1/APB2 clocks.  In various conditions they
+	 * are doubled.  See the Reference Manual for full details!
+	 * In our case, TIM2 on APB1 is running at double frequency, so this
+	 * sets the prescaler to have the timer run at 1MHz
+	 */
+	timer_set_prescaler(TIM2, ((rcc_apb1_frequency * 2) / 1000000));
+
+	/* count to max value, then stop. */
+	timer_set_period(TIM2, 1000);
+
+	/* set the current count to max to avoid delaying initial CS assertion */
+	timer_set_counter(TIM2, 65535);
+
+	// Disable preload (optional, depending on your use case)
+	timer_disable_preload(TIM2);
 }
 
 void app_initialize(void)
@@ -244,6 +333,7 @@ void app_initialize(void)
 	exti_enable_request(ESP32_nATTN);
 	nvic_enable_irq(NVIC_EXTI9_5_IRQ);
 
+	timer_init();
 	//
 	// Hold here wi-fi module to wake up
 	//
