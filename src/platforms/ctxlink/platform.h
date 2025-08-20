@@ -75,6 +75,7 @@ extern bool debug_bmp;
 
 #define CTXLINK_NETWORK_NAME "ctxLink_0001"
 
+#ifndef CTXLINK_ESP32_WIFI
 // Port definitions for WINC1500 wireless module
 //
 //		The WINC1500 is attached to SPI_2
@@ -108,6 +109,41 @@ extern bool debug_bmp;
 #define WINC1500_SPI_DATA_PORT GPIOC
 #define WINC1500_SPI_MISO      GPIO2
 #define WINC1500_SPI_MOSI      GPIO3
+#else
+// Port definitions for ESP32 wireless module
+//
+//		The ESP32 is attached to SPI_2
+//
+#define ESP32_SPI_CHANNEL SPI2
+#define ESP32_RCC_SPI     RCC_SPI2
+
+#define ESP32_PORT            GPIOB  // Port for CS and IRQ
+#define ESP32_SPI_NCS         GPIO15 // Chip select
+#define ESP32_nATTN           GPIO9  // ESP32 attention input
+//
+// Reset port and pin
+//
+#define ESP32_nSPI_READY_PORT GPIOB
+#define ESP32_nSPI_READY      GPIO14 // Reset output
+
+//
+// ESP32 nREADY port and pin
+//
+#define ESP32_nREADY_PORT     GPIOB
+#define ESP32_nREADY          GPIO13
+
+//
+// SPI clock port
+//
+#define ESP32_SPI_CLK_PORT    GPIOB
+#define ESP32_SPI_CLK         GPIO10
+//
+// SPI Data port
+//
+#define ESP32_SPI_DATA_PORT   GPIOC
+#define ESP32_SPI_MISO        GPIO2
+#define ESP32_SPI_MOSI        GPIO3
+#endif
 
 /* Hardware definitions... */
 #define JTAG_PORT    GPIOA
