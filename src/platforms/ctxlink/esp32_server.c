@@ -39,6 +39,9 @@
 
 #include "protocol.h"
 
+static bool g_wifi_connected = false;     ///< True if WiFi connected
+static bool gdb_client_connected = false; ///< True if client connected
+
 /**
  * @brief Minimum time in us between nCS being negated and asserted again.
  */
@@ -158,8 +161,6 @@ void esp32_transfer_packet(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length
 static uint8_t esp32_tx_buffer[ESP32_SPI_BUFFER_SIZE] = {0};
 static uint8_t esp32_rx_buffer[ESP32_SPI_BUFFER_SIZE] = {0};
 
-static uint32_t attn_count = 0; ///< Number of nATTN interrupts
-
 /**
  * @brief nATTN interrupt handler
  * 
@@ -171,7 +172,6 @@ void exti9_5_isr(void)
 	//
 	// Is it nATTN?
 	//
-	attn_count++;
 	if (exti_get_flag_status(ESP32_nATTN) == ESP32_nATTN) {
 		exti_reset_request(ESP32_nATTN);
 		//
@@ -201,9 +201,26 @@ void exti9_5_isr(void)
 			break;
 		}
 
+		case PROTOCOL_PACKET_TYPE_STATUS: {
+			protocol_packet_status_s *client_status = (protocol_packet_status_s *)packet_data;
+			if (client_status->type == PROTOCOL_PACKET_STATUS_TYPE_GDB_CLIENT) {
+				if (client_status->status != 0)
+					gdb_client_connected = true;
+				else
+					gdb_client_connected = false;
+			}
+			break;
+		}
+
 		case PROTOCOL_PACKET_TYPE_NETWORK_INFO: {
 			network_connection_info_s *network_info = (network_connection_info_s *)packet_data;
-			memcpy(&network_information, network_info, sizeof(network_connection_info_s));
+			if (network_info->connected == 0) {
+				memset(&network_information, 0, sizeof(network_connection_info_s));
+				g_wifi_connected = false;
+			} else {
+				g_wifi_connected = true;
+				memcpy(&network_information, network_info, sizeof(network_connection_info_s));
+			}
 			break;
 		}
 
@@ -351,7 +368,7 @@ void gdb_tcp_server(void)
 
 bool is_gdb_client_connected(void)
 {
-	return false;
+	return gdb_client_connected;
 }
 
 void data_tcp_server(void)
@@ -482,8 +499,21 @@ void wifi_connect(size_t argc, const char **argv, char *buffer, uint32_t size)
 //	RSSI = xx
 //	ip = xxx.xxx.xxx.xxx
 //
+// TODO SHould this request the state of the network so that RSSI is the latest value?
+//
 void wifi_get_ip_address(char *buffer, uint32_t size)
 {
-	(void)buffer;
-	(void)size;
+	char local_buffer[64] = {0};
+	memset(buffer, 0x00, size);
+	if (g_wifi_connected) {
+		snprintf(local_buffer, sizeof(local_buffer), "SSID = %s\n", network_information.network_ssid);
+		strncpy(buffer, local_buffer, size);
+		snprintf(local_buffer, sizeof(local_buffer), "RSSI = %d\n", network_information.rssi);
+		strncat(buffer, local_buffer, size);
+		snprintf(local_buffer, sizeof(local_buffer), "IP = %d.%d.%d.%d\n", network_information.ip_address[0],
+			network_information.ip_address[1], network_information.ip_address[2], network_information.ip_address[3]);
+		strncat(buffer, local_buffer, size);
+	} else {
+		memcpy(buffer, "Not connected\n", strlen("Not connected\n"));
+	}
 }
