@@ -523,15 +523,10 @@ void app_task_wait_spin(void)
 {
 }
 
-//
-// Using the passed arguments, attempt to connect to a Wi-Fi AP
-//
-void wifi_connect(size_t argc, const char **argv, char *buffer, uint32_t size)
+void wifi_do_connect(char *ssid, char *pass_phrase)
 {
-	(void)argc;
-	(void)argv;
-	(void)buffer;
-	(void)size;
+	(void)ssid;
+	(void)pass_phrase;
 }
 
 //
