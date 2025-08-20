@@ -44,7 +44,10 @@
 #include <libopencm3/usb/dwc/otg_fs.h>
 #include <libopencm3/stm32/f4/flash.h>
 #include "WiFi_Server.h"
+
+#ifndef CTXLINK_ESP32_WIFI
 #include "winc1500_api.h"
+#endif
 
 //
 // With a 3V3 reference voltage and using a 12 bit ADC each bit represents 0.8mV
@@ -142,7 +145,9 @@ void wifi_init(void)
 	//
 	// Initialize the WiFi server app
 	//
+#ifndef CTXLINK_ESP32_WIFI
 	m2m_wifi_init();
+#endif
 	app_initialize();
 }
 
@@ -319,7 +324,9 @@ void platform_tasks(void)
 		startup = false;
 		platform_delay(1000);
 	}
-	m2m_wifi_task();   // WINC1500 tasks
+#ifndef CTXLINK_ESP32_WIFI
+	m2m_wifi_task(); // WINC1500 tasks
+#endif
 	gdb_tcp_server();  // Run the TCP sever state machine
 	data_tcp_server(); // Run the Uart/Debug TCP server
 }
