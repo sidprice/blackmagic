@@ -437,7 +437,7 @@ const char *platform_battery_voltage(void)
 		//
 		// Format the return string, this will be appened to the target voltage string
 		//
-		strcpy(ret, "\n      Battery : ");
+		strcpy(ret, "\nBattery : ");
 		uint32_t append_index = strlen(ret);
 		ret[append_index++] = '0' + battery_voltage / 1000U;
 		ret[append_index++] = '.';
@@ -449,7 +449,7 @@ const char *platform_battery_voltage(void)
 		ret[append_index++] = '\n';
 		ret[append_index] = 0x00;
 	} else
-		memcpy(ret, "\n      Battery : Not present", strlen("\n      Battery : Not present") + 1);
+		memcpy(ret, "\nBattery : Not present", strlen("\nBattery : Not present") + 1);
 	return ret;
 }
 

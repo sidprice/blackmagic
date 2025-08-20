@@ -337,6 +337,7 @@ extern bool debug_bmp;
 		gpio_set_val(LED_PORT, LED_ERROR, state); \
 	}
 
+extern bool systick_tick;
 void platform_tasks(void);
 const char *platform_battery_voltage(void);
 bool platform_check_battery_voltage(void);
