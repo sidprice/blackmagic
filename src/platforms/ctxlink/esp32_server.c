@@ -106,8 +106,72 @@ void esp32_transfer_packet(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length
 	gpio_set(ESP32_PORT, ESP32_SPI_NCS);
 }
 
-// uint8_t buffer[1024] = {0};
-// uint8_t inputBuffer[1024] = {0};
+/**
+ * @brief ESP32 SPI transfer buffers
+ */
+#define ESP32_SPI_BUFFER_SIZE 2048U
+static uint8_t esp32_tx_buffer[ESP32_SPI_BUFFER_SIZE] = {0};
+static uint8_t esp32_rx_buffer[ESP32_SPI_BUFFER_SIZE] = {0};
+
+static uint32_t attn_count = 0; ///< Number of nATTN interrupts
+
+/**
+ * @brief nATTN interrupt handler
+ * 
+ * This interrupt is triggered when the ESP32 has data for ctxLink.
+ * 
+ */
+void exti9_5_isr(void)
+{
+	//
+	// Is it nATTN?
+	//
+	attn_count++;
+	if (exti_get_flag_status(ESP32_nATTN) == ESP32_nATTN) {
+		exti_reset_request(ESP32_nATTN);
+		//
+		// Read the data from ESP32
+		//
+		esp32_transfer_packet(esp32_tx_buffer, esp32_rx_buffer, ESP32_SPI_BUFFER_SIZE);
+		//
+		// Parse the packet
+		//
+		size_t packet_size;
+		protocol_packet_type_e packet_type;
+		uint8_t *packet_data;
+		protocol_split(esp32_rx_buffer, &packet_size, &packet_type, &packet_data);
+		//
+		// Process input packet according to its type
+		//
+		switch (packet_type) {
+		case PROTOCOL_PACKET_TYPE_FROM_GDB: {
+			//
+			// Copy the packet data to the local input buffer of ctxLink
+			//
+			__atomic_fetch_add(&buffer_count, packet_size, __ATOMIC_RELAXED);
+			// buffer_count += packet_size;
+			for (uint32_t i = 0; i < packet_size; i++, input_index = (input_index + 1) % INPUT_BUFFER_SIZE) {
+				input_buffer[input_index] = packet_data[i];
+			}
+			break;
+		}
+
+		case PROTOCOL_PACKET_TYPE_NETWORK_INFO: {
+			network_connection_info_s *network_info = (network_connection_info_s *)packet_data;
+			memcpy(&network_information, network_info, sizeof(network_connection_info_s));
+			break;
+		}
+
+		default: {
+			//
+			// Unknown packet type, assert
+			//
+			//__asm__("BKPT #0");
+			break;
+		}
+		}
+	}
+}
 
 void app_initialize(void)
 {
@@ -181,67 +245,8 @@ void app_initialize(void)
 	//
 	// Hold here wi-fi module to wake up
 	//
-	while (gpio_get(ESP32_nREADY_PORT, ESP32_nREADY) != 0)
+	while (gpio_get(ESP32_nREADY_PORT, ESP32_nREADY) != 0) // TODO Probably shouldn't do this without timeout
 		;
-
-#if 0
-	//
-	// The ESP32 seems to not bring up GPIO in a clean way and some "glitches"
-	// were observed on the ATTN input  when the ESP32 starts up.  This
-	// causes the interrupt to be triggered and the system to wake up early.
-	// So we need to wait for a while to make sure that the interrupt is not
-	// triggered by a glitch.
-	//
-	// Hence the "strange" loop here.
-	//
-	while (__atomic_load_n(&wifi_awake, __ATOMIC_RELAXED) == false) {
-		platform_delay(1);
-		//
-		// Check the ATTN input is still low before we continue
-		//
-		if (gpio_get(WINC1500_PORT, WINC1500_IRQ) == 0)
-			break;
-	}
-	//
-	// Send a greeting to test the ESP32 input
-	//
-	{
-		uint8_t buffer[] = {'H', 'e', 'l', 'l', 'o', '\n'};
-		uint8_t inputBuffer[32];
-		esp32_transfer(buffer, inputBuffer, sizeof(buffer));
-	}
-	// platform_delay(100);
-	while (gpio_get(WINC1500_PORT, WINC1500_IRQ))
-		;
-	while (!gpio_get(WINC1500_PORT, WINC1500_IRQ))
-		;
-
-	{
-		uint8_t buffer[] = {'H', 'E', 'L', 'L', 'O', '\n'};
-		uint8_t inputBuffer[32];
-		esp32_transfer(buffer, inputBuffer, sizeof(buffer));
-	}
-#endif
-	platform_delay(100);
-	while (1) {
-		uint8_t buffer[] = {0xDE, 0xAD, 0x05, 0x00, 0x07, 'H', 'E', 'L', 'L', 'O', 0, 0};
-		uint8_t second_buffer[1024] = {0};
-		uint8_t inputBuffer[1024] = {0};
-		// esp32_transfer_header_and_packet(buffer, inputBuffer, sizeof(buffer));
-		// platform_delay(100);
-		memset(second_buffer, 0, sizeof(second_buffer));
-		while (gpio_get(ESP32_PORT, ESP32_nATTN) != 0)
-			;
-		esp32_transfer_packet(buffer, inputBuffer, 12);
-		//
-		while (gpio_get(ESP32_nSPI_READY_PORT, ESP32_nSPI_READY) == 0)
-			;
-
-		for (size_t i = 0; i < 2000; i++)
-			;
-		esp32_transfer_header_and_packet(buffer, inputBuffer, sizeof(buffer));
-		platform_delay(100);
-	}
 }
 
 void app_task(void)
@@ -307,6 +312,13 @@ void wifi_gdb_flush(bool force)
 bool wifi_got_client(void)
 {
 	return false;
+}
+
+int wifi_have_input(void)
+{
+	int result;
+	__atomic_load(&buffer_count, &result, __ATOMIC_RELAXED);
+	return result;
 }
 
 uint8_t wifi_get_next(void)
