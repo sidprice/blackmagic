@@ -383,6 +383,7 @@ void app_initialize(void)
 
 void app_task(void)
 {
+	g_wifi_connected ? gpio_set(LED_PORT, LED_MODE) : gpio_clear(LED_PORT, LED_MODE);
 }
 
 //

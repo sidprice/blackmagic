@@ -40,10 +40,10 @@ endif
 
 probe_ctxlink_includes = include_directories('.')
 
-probe_ctxlink_sources = files('ctxLink_mode_led.c', 'ctxlink_gdb_if.c', 'platform.c')
+probe_ctxlink_sources = files('ctxlink_gdb_if.c', 'platform.c')
 
 if esp32_wifi == false
-	probe_ctxlink_sources += files('winc1500_driver_stub_api.c', 'winc1500_server.c')
+	probe_ctxlink_sources += files('ctxLink_mode_led.c', 'winc1500_driver_stub_api.c', 'winc1500_server.c')
 else
 	probe_ctxlink_sources += files('esp32_server.c')
 endif
