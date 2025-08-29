@@ -90,7 +90,10 @@ void sys_tick_handler(void)
 		morse_tick = 0;
 	} else
 		++morse_tick;
-
+#ifdef CTXLINK_ESP32_WIFI
+	platform_read_adc();
+	systick_tick = true;
+#endif
 #if defined(PLATFORM_HAS_POWER_SWITCH) && defined(STM32F1)
 	/* First check if target power is presently enabled */
 	if (platform_target_get_power()) {
