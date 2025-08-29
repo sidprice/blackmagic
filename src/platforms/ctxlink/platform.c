@@ -62,8 +62,13 @@
 #define BATTERY_VOLTAGE_2 4268U
 #define BATTERY_LOW       3600U
 
+#ifndef CTXLINK_ESP32_WIFI
 #define CTXLINK_BATTERY_INPUT        0 // ADC Channel for battery input
 #define CTXLINK_TARGET_VOLTAGE_INPUT 8 // ADC Chanmel for target voltage
+#else
+#define CTXLINK_BATTERY_INPUT        1 // ADC Channel for battery input
+#define CTXLINK_TARGET_VOLTAGE_INPUT 2 // ADC Chanmel for target voltage
+#endif
 
 #define CTXLINK_ADC_BATTERY 0
 #define CTXLINK_ADC_TARGET  1

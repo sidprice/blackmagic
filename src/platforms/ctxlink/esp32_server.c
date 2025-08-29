@@ -115,14 +115,14 @@ void esp32_transfer(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length)
 void esp32_transfer_header_and_packet(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length)
 {
 	wait_minimum_cs_negated_time();
-	gpio_clear(ESP32_PORT, ESP32_SPI_NCS);
+	gpio_clear(ESP32_SPI_NCS_PORT, ESP32_SPI_NCS);
 	//
 	// Wait for ESP32 SPI ready
 	//
 	while (gpio_get(ESP32_nSPI_READY_PORT, ESP32_nSPI_READY) != 0)
 		;
 	esp32_transfer(txBuffer, rxBuffer, length);
-	gpio_set(ESP32_PORT, ESP32_SPI_NCS);
+	gpio_set(ESP32_SPI_NCS_PORT, ESP32_SPI_NCS);
 	timer2_start(); // Reset and start TIM2
 }
 
@@ -137,7 +137,7 @@ void esp32_transfer_packet(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length
 	(void)length;
 	uint32_t byte_count;
 	wait_minimum_cs_negated_time();
-	gpio_clear(ESP32_PORT, ESP32_SPI_NCS);
+	gpio_clear(ESP32_SPI_NCS_PORT, ESP32_SPI_NCS);
 	//
 	// Wait for ESP32 ready
 	//
@@ -156,7 +156,7 @@ void esp32_transfer_packet(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length
 	// Transfer the balance of the packet
 	//
 	esp32_transfer(txBuffer, rxBuffer + 5, byte_count);
-	gpio_set(ESP32_PORT, ESP32_SPI_NCS);
+	gpio_set(ESP32_SPI_NCS_PORT, ESP32_SPI_NCS);
 	timer2_start(); // Reset and start TIM2
 }
 
@@ -173,7 +173,7 @@ static uint8_t esp32_rx_buffer[ESP32_SPI_BUFFER_SIZE] = {0};
  * This interrupt is triggered when the ESP32 has data for ctxLink.
  * 
  */
-void exti9_5_isr(void)
+void exti2_isr(void)
 {
 	//
 	// Is it nATTN?
@@ -297,7 +297,7 @@ void app_initialize(void)
 	// Negate all outputs to ESP32
 	//
 	gpio_set(ESP32_nSPI_READY_PORT, ESP32_nSPI_READY);
-	gpio_set(ESP32_PORT, ESP32_SPI_NCS);
+	gpio_set(ESP32_SPI_NCS_PORT, ESP32_SPI_NCS);
 	gpio_set(ESP32_nREADY_PORT, ESP32_nREADY); // Will be used as input later
 	gpio_set(ESP32_nRESET, ESP32_nRESET);
 
@@ -310,7 +310,7 @@ void app_initialize(void)
 	//
 	//		Chip select output
 	//
-	gpio_mode_setup(ESP32_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, ESP32_SPI_NCS);
+	gpio_mode_setup(ESP32_SPI_NCS_PORT, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, ESP32_SPI_NCS);
 	//
 	// ESP32 nREADY signal
 	//
@@ -326,8 +326,8 @@ void app_initialize(void)
 	//	First enable the SYSCFG clock
 	//
 	rcc_periph_clock_enable(RCC_SYSCFG);
-	gpio_mode_setup(ESP32_PORT, GPIO_MODE_INPUT, GPIO_PUPD_NONE, ESP32_nATTN); // Input signal with pulldown
-	exti_select_source(ESP32_nATTN, ESP32_PORT);
+	gpio_mode_setup(ESP32_NATTN_PORT, GPIO_MODE_INPUT, GPIO_PUPD_NONE, ESP32_nATTN); // Input signal with pulldown
+	exti_select_source(ESP32_nATTN, ESP32_NATTN_PORT);
 	exti_set_trigger(ESP32_nATTN, EXTI_TRIGGER_FALLING);
 	//
 	// Set the port pins of the SPI channel to high-speed I/O
@@ -360,7 +360,7 @@ void app_initialize(void)
 	// Reset the ESP32
 	//
 	gpio_clear(ESP32_nRESET_PORT, ESP32_nRESET); // Set nRESET low
-	platform_delay(100);
+	platform_delay(10);
 	gpio_set(ESP32_nRESET_PORT, ESP32_nRESET); // Set nRESET high
 	//
 	// Hold here wi-fi module to wake up
@@ -391,7 +391,7 @@ void app_initialize(void)
 	//
 	spi_enable(ESP32_SPI_CHANNEL);
 	exti_enable_request(ESP32_nATTN);
-	nvic_enable_irq(NVIC_EXTI9_5_IRQ);
+	nvic_enable_irq(NVIC_EXTI2_IRQ);
 }
 
 void app_task(void)

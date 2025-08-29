@@ -43,28 +43,52 @@ extern bool debug_bmp;
 #endif
 
 /*
- * Important pin mappings for STM32 implementation:
+ * Important pin mappings for ctxLink implementation:
  *
- * LED0 = 	PB2	(Green  LED : Running)
- * LED1 = 	PC6		(Orange LED : Idle)
- * LED2 = 	PC8		(Red LED    : Error)
- * LED3 = 	PC9		(Green LED   : ctxLink Mode)
+ * +-----------------+----------------------+----------------------+---------------------+
+ * | Signal          | Function             |  WINC1500            |  ESP32-S3           |
+ * +-----------------+----------------------+----------------------+---------------------+
+ * | LED0            |  Green LED - UART    |  PB2                 |   PC13              |
+ * | LED1            |  Orange LED -  Idle  |  PC6                 |   PC14              |
+ * | LED2            | 	Red LED - Error     |  PC8                 |   PC15              |
+ * | LED3            |  Green LED - Mode    |  PC9                 |   PA3               |
+ * +-----------------+----------------------+----------------------+---------------------+
+ * | iTDI            |  TDI                 |  PA3                 |   PB6               |
+ * | iTMS            |  TMS                 |  PA4                 |   PB4               |
+ * | iTCK            |  TCK                 |  PA5                 |   PB5               |
+ * | iTDO            |  TDO                 |  PC7                 |   PA15              |
+ * | iTMS_DIR        |  TMS_DIR             |  PA1                 |   PB7               |
+ * +-----------------+----------------------+----------------------+---------------------+
+ * | iRST            |  nRST                |  PA2                 |   PB9               |
+ * | iRST_SENSE      |  nRST_SENSE          |  PA7                 |   PB8               |
+ * +-----------------+----------------------+----------------------+---------------------+
+ * | PWR_BR          |  Target Power Ctrl   |  PB1                 |   PA0               |
+ * | TPWR            |  Target Power Mon    |  PB0 - ADC1 IN8      |   PA2 - ADC1 IN2    |
+ * | BATT_MON        |  Battery Monitor     |  PA0 - ADC1 IN0      |   PA1 - ADC1 IN1    |
+ * +-----------------+----------------------+----------------------+---------------------+
+ * | REN             |  USB_PU              |  PA8                 |   PB13              |
+ * | USB_DM          |  USB D-              |  PA11                |   PA11              |
+ * | USB_DP          |  USB D+              |  PA12                |   PA12              |
+ * | VBUS            |  USB VBUS            |  PA9                 |   PB14              |
+ * +-----------------+----------------------+----------------------+---------------------+
+ * | SW_BOOTLOADER   | Bootloader (mode) SW |  PB12                |   PB12              |
+ * +-----------------+----------------------+----------------------+---------------------+
+ * |  SPI Peripheral |  SPI Peripheral       |  SPI2 - AF05        |   SPI1 - AF05       |
+ * |  SPI_NCS        |  SPI Chip Select      |  PB15               |   PA4               |
+ * |  nIRQ           |  WINC1500 IRQ         |  PB9                | ----------          |
+ * |  SPI_CLK        |  SPI Clock            |  PB10               |   PA5               |
+ * |  SPI_MISO       |  SPI MISO             |  PC2                |   PA6               |
+ * |  SPI_MOSI       |  SPI MOSI             |  PC3                |   PA7               |
+ * |  WINC1500_CE    |  WINC1500 Chip Enable |  PB13               | ----------          |
+ * |  nESP32_RESET   |  ESP32 nReset         | -----------         |  PB0                |
+ * |  nREADY         |  ESP32 nREADY         | -----------         |  PB1                |
+ * |  nATTN          |  ESP32 nATTN          | -----------         |  PB2                |
+ * |  nSPI_READY     |  ESP32 nSPI_READY     | -----------         |  PB10               |
+ * +-----------------+-----------------------+---------------------+---------------------+
+ * |  iTXD           |  UART TXD             |  PB6 - AF07 - UART1 |  PA9 - AF07 - UART1 |
+ * |  iRXD           |  UART RXD             |  PB7 - AF07 - UART1 |  PA10 - AF07 - UART1|
+ * +-----------------+-----------------------+---------------------+---------------------+
  *
- * nRST		= A2	(output)
- * PWR_BR	= PB1	(output) - supply power to the target, active low
- *
- * USB_PU   = PA8   (output)
- * TDI =      PA3	(output)
- * TMS =      PA4	(input/output for SWDIO)
- * TCK =      PA5	(output SWCLK)
- * TDO =      PC7	(input SWO)
- * TMS_DIR = PA1	(output) controls target buffer direction
- * nRST_SNS = PA7   (input)
-
- * TPWR =	 PB0	(analog input)
- * VBAT =	 PA0	(analog input)
- *
- * SW_BOOTLOADER	PB12	(input) System Bootloader button
  */
 
 //
@@ -76,126 +100,10 @@ extern bool debug_bmp;
 #define CTXLINK_NETWORK_NAME "ctxLink_0001"
 
 #ifndef CTXLINK_ESP32_WIFI
-// Port definitions for WINC1500 wireless module
-//
-//		The WINC1500 is attached to SPI_2
-//
-#define WINC1500_SPI_CHANNEL SPI2
-#define WINC1500_RCC_SPI     RCC_SPI2
-
-#define WINC1500_PORT    GPIOB  // Port for CS and IRQ
-#define WINC1500_SPI_NCS GPIO15 // Chip select
-#define WINC1500_IRQ     GPIO9  // IRQ input
-//
-// Reset port and pin
-//
-#define WINC1500_RESET_PORT GPIOB
-#define WINC1500_RESET      GPIO14 // Reset output
-
-//
-// Chip enable port and pin
-//
-#define WINC1500_CHIP_EN_PORT GPIOB
-#define WINC1500_CHIP_EN      GPIO13
-
-//
-// SPI clock port
-//
-#define WINC1500_SPI_CLK_PORT GPIOB
-#define WINC1500_SPI_CLK      GPIO10
-//
-// SPI Data port
-//
-#define WINC1500_SPI_DATA_PORT GPIOC
-#define WINC1500_SPI_MISO      GPIO2
-#define WINC1500_SPI_MOSI      GPIO3
+#include "platform_winc1500.h"
 #else
-// Port definitions for ESP32 wireless module
-//
-//		The ESP32 is attached to SPI_2
-//
-#define ESP32_SPI_CHANNEL SPI2
-#define ESP32_RCC_SPI     RCC_SPI2
-
-#define ESP32_PORT            GPIOB  // Port for CS and IRQ
-#define ESP32_SPI_NCS         GPIO15 // Chip select
-#define ESP32_nATTN           GPIO9  // ESP32 attention input
-//
-// Reset port and pin
-//
-#define ESP32_nSPI_READY_PORT GPIOB
-#define ESP32_nSPI_READY      GPIO14 // Reset output
-
-//
-// ESP32 nREADY port and pin
-//
-#define ESP32_nREADY_PORT     GPIOB
-#define ESP32_nREADY          GPIO13
-//
-// ESP32 nRESET port and pin
-//
-// TODO Pin change may be required for PCB hardware
-#define ESP32_nRESET_PORT     GPIOC
-#define ESP32_nRESET          GPIO10 // Reset output
-//
-// SPI clock port
-//
-#define ESP32_SPI_CLK_PORT    GPIOB
-#define ESP32_SPI_CLK         GPIO10
-//
-// SPI Data port
-//
-#define ESP32_SPI_DATA_PORT   GPIOC
-#define ESP32_SPI_MISO        GPIO2
-#define ESP32_SPI_MOSI        GPIO3
+#include "platform_esp32s3.h"
 #endif
-
-/* Hardware definitions... */
-#define JTAG_PORT    GPIOA
-#define TDI_PORT     JTAG_PORT
-#define TMS_PORT     JTAG_PORT
-#define TCK_PORT     JTAG_PORT
-#define TMS_DIR_PORT JTAG_PORT
-#define TDO_PORT     GPIOC
-#define TDI_PIN      GPIO3
-#define TMS_PIN      GPIO4
-#define TMS_DIR_PIN  GPIO1
-#define TCK_PIN      GPIO5
-#define TDO_PIN      GPIO7
-
-#define SWDIO_PORT     JTAG_PORT
-#define SWCLK_PORT     JTAG_PORT
-#define SWDIO_DIR_PORT JTAG_PORT
-#define SWDIO_PIN      TMS_PIN
-#define SWCLK_PIN      TCK_PIN
-#define SWDIO_DIR_PIN  TMS_DIR_PIN
-
-#define TRST_PORT       GPIOA
-#define TRST_PIN        GPIO2
-#define NRST_PORT       GPIOA
-#define NRST_PIN        GPIO2
-#define NRST_SENSE_PORT GPIOA
-#define NRST_SENSE_PIN  GPIO7
-
-#define SWO_PORT GPIOC
-#define SWO_PIN  GPIO7
-
-#define LED_PORT      GPIOC
-#define LED_PORT_UART GPIOB
-#define LED_UART      GPIO2
-#define LED_IDLE_RUN  GPIO6
-#define LED_ERROR     GPIO8
-#define LED_MODE      GPIO9
-
-#define SWITCH_PORT       GPIOB
-#define SW_BOOTLOADER_PIN GPIO12
-
-#define TPWR_PORT   GPIOB
-#define TPWR_PIN    GPIO0
-#define VBAT_PORT   GPIOA
-#define VBAT_PIN    GPIO0
-#define PWR_BR_PORT GPIOB
-#define PWR_BR_PIN  GPIO1
 
 //
 // SWO UART definitions
@@ -208,13 +116,6 @@ extern bool debug_bmp;
 #define SWO_UART_RX_PIN GPIO7
 #define SWO_UART_ISR    usart6_isr
 #define SWO_UART_IRQ    NVIC_USART6_IRQ
-
-/* USB pin definitions */
-#define USB_PU_PORT GPIOA
-#define USB_PORT    GPIOA
-#define USB_PU_PIN  GPIO8
-#define USB_DP_PIN  GPIO12
-#define USB_DM_PIN  GPIO11
 
 /*
  * To use USART1 as USBUSART, DMA2 is selected from RM0368, page 170, table 29.
