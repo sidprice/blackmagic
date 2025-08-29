@@ -50,7 +50,7 @@ static uint32_t check_battery_period = CHECK_BATTERY_PERIOD;
 /**
  * @brief Minimum time in us between nCS being negated and asserted again.
  */
-#define MINIMUM_CS_NEGATED_TIME 200
+#define MINIMUM_CS_NEGATED_TIME 1000
 
 #define INPUT_BUFFER_SIZE 2048
 
