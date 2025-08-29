@@ -181,10 +181,10 @@ void exti9_5_isr(void)
 		//
 		// Parse the packet
 		//
-		size_t packet_size;
+		size_t data_length;
 		protocol_packet_type_e packet_type;
 		uint8_t *packet_data;
-		protocol_split(esp32_rx_buffer, &packet_size, &packet_type, &packet_data);
+		protocol_split(esp32_rx_buffer, &data_length, &packet_type, &packet_data);
 		//
 		// Process input packet according to its type
 		//
@@ -193,9 +193,9 @@ void exti9_5_isr(void)
 			//
 			// Copy the packet data to the local input buffer of ctxLink
 			//
-			__atomic_fetch_add(&buffer_count, packet_size, __ATOMIC_RELAXED);
-			// buffer_count += packet_size;
-			for (uint32_t i = 0; i < packet_size; i++, input_index = (input_index + 1) % INPUT_BUFFER_SIZE) {
+			__atomic_fetch_add(&buffer_count, data_length, __ATOMIC_RELAXED);
+			// buffer_count += data_length;
+			for (uint32_t i = 0; i < data_length; i++, input_index = (input_index + 1) % INPUT_BUFFER_SIZE) {
 				input_buffer[input_index] = packet_data[i];
 			}
 			break;
@@ -397,7 +397,7 @@ void wifi_gdb_putchar(uint8_t ch, bool flush)
 		//
 		// Package the GDB response
 		//
-		send_count = package_data(&send_buffer[0], send_count, PROTOCOL_PACKET_TYPE_TO_GDB, INPUT_BUFFER_SIZE);
+		send_count = package_data(&send_buffer[0], send_count, PROTOCOL_PACKET_TYPE_TO_GDB);
 		esp32_transfer_header_and_packet(&send_buffer[0], input_buffer, send_count);
 		send_count = 0;
 	}
