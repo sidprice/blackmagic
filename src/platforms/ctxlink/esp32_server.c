@@ -526,14 +526,38 @@ uint8_t wifi_get_next_to(uint32_t timeout)
 	return count;
 }
 
+/**
+ * @brief Wait for the Wi-Fi connection
+ * 
+ * Or ... timeout.
+ * 
+ * The function name is a legacy name, it is required for WINC1500 compatibility.
+ */
+
 void app_task_wait_spin(void)
 {
+	uint32_t wait_timeout = 5000U;
+	g_wifi_connected = false;
+	while (wait_timeout-- != 0U && !g_wifi_connected) {
+		platform_tasks();
+		platform_delay(1U);
+	}
 }
 
+//
+// Assemble the WiFi connection data into a packet for ESP32
+//
 void wifi_do_connect(char *ssid, char *pass_phrase)
 {
-	(void)ssid;
-	(void)pass_phrase;
+	size_t packet_size;
+	network_connection_info_s network_info = {0};
+	network_info.type = PROTOCOL_PACKET_TYPE_SET_NETWORK_INFO;
+	memcpy(network_info.network_ssid, ssid, MAX_SSID_LENGTH);
+	memcpy(network_info.pass_phrase, pass_phrase, MAX_PASS_PHRASE_LENGTH);
+
+	memcpy(send_buffer, &network_info, sizeof(network_connection_info_s));
+	packet_size = package_data(send_buffer, sizeof(send_buffer), PROTOCOL_PACKET_TYPE_SET_NETWORK_INFO);
+	esp32_transfer_header_and_packet(send_buffer, input_buffer, packet_size);
 }
 
 //
