@@ -365,11 +365,18 @@ void app_initialize(void)
 	//
 	// Hold here wi-fi module to wake up
 	//
+	// The ESP32 nReady signal is not initialized for a while, so,
+	// wait for the init to happen. This indicated by a high level
+	// on the input
+	//
+	while (gpio_get(ESP32_nREADY_PORT, ESP32_nREADY) == 0) {
+		platform_delay(10);
+	}
 	// The ESP32-S3 GPIO has a couple of level changes that occur
 	// as it comes out of reset. It is important that these changes
 	// on the nREADY and nATTN signals are not interpreted as signals.
 	// Wait here until the nREADY signal has stabilized and THEN
-	// enable the nATTN interupt.
+	// enable the nATTN interrupt.
 	//
 	// platform_delay(5000);
 	while (true) {
