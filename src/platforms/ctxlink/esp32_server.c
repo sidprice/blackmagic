@@ -335,7 +335,7 @@ void app_initialize(void)
 	gpio_set_output_options(ESP32_SPI_DATA_PORT, GPIO_OTYPE_PP, GPIO_OSPEED_100MHZ,
 		ESP32_SPI_CLK | ESP32_SPI_MISO | ESP32_SPI_MOSI | ESP32_nSPI_READY);
 	//
-	// Enable alternate function for SPI2_CLK PB10 AF5
+	// Enable alternate function for SPI1_CLK PA5 AF5
 	//
 	gpio_mode_setup(ESP32_SPI_CLK_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, ESP32_SPI_CLK);
 	gpio_set_af(ESP32_SPI_CLK_PORT, GPIO_AF5, ESP32_SPI_CLK);
@@ -347,7 +347,7 @@ void app_initialize(void)
 	//
 	// I think this is Mode_0, 8 bit data, MSB first, the clock rate is 42MHz with core of 84MHz
 	//
-	spi_init_master(ESP32_SPI_CHANNEL, SPI_CR1_BAUDRATE_FPCLK_DIV_8, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
+	spi_init_master(ESP32_SPI_CHANNEL, SPI_CR1_BAUDRATE_FPCLK_DIV_64, SPI_CR1_CPOL_CLK_TO_0_WHEN_IDLE,
 		SPI_CR1_CPHA_CLK_TRANSITION_2, SPI_CR1_DFF_8BIT, SPI_CR1_MSBFIRST);
 	//
 	// Set NSS to software management and also ensure NSS is high, if not written high no data will be sent
@@ -360,7 +360,7 @@ void app_initialize(void)
 	// Reset the ESP32
 	//
 	gpio_clear(ESP32_nRESET_PORT, ESP32_nRESET); // Set nRESET low
-	platform_delay(10);
+	platform_delay(100);
 	gpio_set(ESP32_nRESET_PORT, ESP32_nRESET); // Set nRESET high
 	//
 	// Hold here wi-fi module to wake up
@@ -556,7 +556,7 @@ void wifi_do_connect(char *ssid, char *pass_phrase)
 	memcpy(network_info.pass_phrase, pass_phrase, MAX_PASS_PHRASE_LENGTH);
 
 	memcpy(send_buffer, &network_info, sizeof(network_connection_info_s));
-	packet_size = package_data(send_buffer, sizeof(send_buffer), PROTOCOL_PACKET_TYPE_SET_NETWORK_INFO);
+	packet_size = package_data(send_buffer, sizeof(network_connection_info_s), PROTOCOL_PACKET_TYPE_SET_NETWORK_INFO);
 	esp32_transfer_header_and_packet(send_buffer, input_buffer, packet_size);
 }
 
