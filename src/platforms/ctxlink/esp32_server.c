@@ -141,7 +141,7 @@ void esp32_transfer_packet(uint8_t *txBuffer, uint8_t *rxBuffer, uint16_t length
 	//
 	// Byte count is in bytes 3 & 4
 	//
-	byte_count = (*(rxBuffer + 3) >> 8) & 0xff;
+	byte_count = (*(rxBuffer + 3) << 8) & 0xff00;
 	byte_count += *(rxBuffer + 4);
 	//
 	// Transfer the balance of the packet
