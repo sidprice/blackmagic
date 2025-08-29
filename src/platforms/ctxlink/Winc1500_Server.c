@@ -696,79 +696,29 @@ void app_task_wait_spin(void)
 }
 
 //
-// Using the passed arguments, attempt to connect to a Wi-Fi AP
-//
-void wifi_connect(size_t argc, const char **argv, char *buffer, uint32_t size)
-{
-	char ssid[64] = {0};
-	char pass_phrase[64] = {0};
-	char *output_buffer = ssid;
-	bool first_element = true;
-	memset(buffer, 0x00, size);
-	//
-	// Iterate over the arguments received to build the SSID and passphrase
-	//
-	// The BMF command line parser treats spaces as delimiters and both SSID
-	// and the passphrase may have embedded spaces. The SSID and passphrase
-	// should have a comma separator.
-	//
-	// The following loop concatenates each arg and adds back the space delimiter.
-	//
-	// It does this initially into the SSID name, up until an argument is found
-	// that contains a comma. The string before the comma is concatenated with
-	// the SSID and the string after the comma is used as the first element of
-	// the passphrase.
-	//
-	// The remaining arguments are then concatenated into the passphrase with
-	// an space added between them.
-	//
-	for (size_t loop = 1; loop < argc; loop++) {
-		char *const delimeter = strchr(argv[loop], ',');
-		if (delimeter == NULL || output_buffer == pass_phrase) {
-			if (!first_element)
-				strcat(output_buffer, " ");
-			strcat(output_buffer, argv[loop]);
-			first_element = false;
-		} else {
-			if (!first_element)
-				strcat(output_buffer, " ");
-			*delimeter = 0x00;                 // Null terminate string before comma
-			strcat(output_buffer, argv[loop]); // Complete the string in the output buffer
-			//
-			// Start the passphrase with the remaining string
-			//
-			output_buffer = pass_phrase;
-			first_element = false; // The end of the split argument contained the first element
-			strcat(output_buffer, delimeter + 1);
-		}
-	}
-	//
-	// If we have both SSID and Passphrase attempt to connect
-	//
-	if (ssid[0] != '\0' && pass_phrase[0] != '\0') {
-		if (is_wifi_connected()) {
-			//
-			// Issue a disconnect first
-			//
-			app_state = app_state_wait_for_disconnect;
-			wifi_disconnect();
-			app_task_wait_spin();
-		}
-		//
-		// Force app_task into wait for wifi connect
-		//
-		app_state = app_state_wait_for_wifi_connect;
-		m2m_wifi_connect_sc(ssid, strlen(ssid), M2M_WIFI_SEC_WPA_PSK, &pass_phrase, M2M_WIFI_CH_ALL);
-	}
-}
-
-//
 // Disconnect from network
 //
 void wifi_disconnect(void)
 {
 	app_state = app_state_wait_for_disconnect;
 	m2m_wifi_disconnect();
+}
+
+void wifi_do_connect(char *ssid, char *pass_phrase)
+{
+	if (is_wifi_connected()) {
+		//
+		// Issue a disconnect first
+		//
+		app_state = app_state_wait_for_disconnect;
+		wifi_disconnect();
+		app_task_wait_spin();
+	}
+	//
+	// Force app_task into wait for wifi connect
+	//
+	app_state = app_state_wait_for_wifi_connect;
+	m2m_wifi_connect_sc(ssid, strlen(ssid), M2M_WIFI_SEC_WPA_PSK, &pass_phrase, M2M_WIFI_CH_ALL);
 }
 
 void handle_socket_bind_event(SOCKET *sock, bool *running_state)
@@ -974,7 +924,7 @@ static void app_socket_callback(SOCKET sock, uint8_t msg_type, void *msg)
 				// Copy data to circular input buffer
 				//
 				for (int16_t i = 0; local_count != 0;
-					 i++, local_count--, input_index = (input_index + 1) % INPUT_BUFFER_SIZE) {
+					i++, local_count--, input_index = (input_index + 1) % INPUT_BUFFER_SIZE) {
 					input_buffer[input_index] = local_buffer[i];
 				}
 				buffer_count += recv_data->bufSize;
