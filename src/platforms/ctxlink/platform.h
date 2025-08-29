@@ -131,7 +131,12 @@ extern bool debug_bmp;
 //
 #define ESP32_nREADY_PORT     GPIOB
 #define ESP32_nREADY          GPIO13
-
+//
+// ESP32 nRESET port and pin
+//
+// TODO Pin change may be required for PCB hardware
+#define ESP32_nRESET_PORT     GPIOC
+#define ESP32_nRESET          GPIO10 // Reset output
 //
 // SPI clock port
 //
